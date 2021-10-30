@@ -1,6 +1,6 @@
 [package]
 name = "server-conf"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["Chuma Takahiro <co.chuma@gmail.com>"]
 edition = "2018"
 

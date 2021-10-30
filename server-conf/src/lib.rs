@@ -1,6 +1,7 @@
 use config::{Config, ConfigError, Environment, File};
 use once_cell::sync::Lazy;
 use serde::Deserialize;
+use std::env;
 
 const CONFIG_FILE_PATH: &str = "./config/default";
 
@@ -59,11 +60,8 @@ impl BackendConfig {
         s.set_default("db.host", "localhost".to_string()).unwrap();
         s.set_default("db.port", 5432).unwrap();
         s.merge(File::with_name(CONFIG_FILE_PATH).required(false)).unwrap();
-        if cfg!(test) {
-            s.merge(File::with_name("./config/test").required(false)).unwrap();
-        } else if cfg!(debug_assertions) {
-            s.merge(File::with_name("./config/development").required(false)).unwrap();
-        }
+        let env = env::var("RUST_CONF_ENV").unwrap_or_else(|_| "development".into());
+        s.merge(File::with_name(&format!("./config/{}", env)).required(false)).unwrap();
         s.merge(Environment::with_prefix("sv_").separator("__")).unwrap();
         s.try_into().unwrap()
     }
