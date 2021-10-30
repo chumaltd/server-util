@@ -2,7 +2,7 @@ use config::{Config, ConfigError, Environment, File};
 use once_cell::sync::Lazy;
 use serde::Deserialize;
 
-const CONFIG_FILE_PATH: &str = "./config/default.toml";
+const CONFIG_FILE_PATH: &str = "./config/default";
 
 pub static SV_CONF: Lazy<BackendConfig> = Lazy::new(|| BackendConfig::new());
 
@@ -59,11 +59,15 @@ impl BackendConfig {
         s.set_default("db.host", "localhost".to_string()).unwrap();
         s.set_default("db.port", 5432).unwrap();
         s.merge(File::with_name(CONFIG_FILE_PATH).required(false)).unwrap();
+        if cfg!(test) {
+            s.merge(File::with_name("./config/test").required(false)).unwrap();
+        } else if cfg!(debug_assertions) {
+            s.merge(File::with_name("./config/development").required(false)).unwrap();
+        }
         s.merge(Environment::with_prefix("sv_").separator("__")).unwrap();
         s.try_into().unwrap()
     }
 }
-
 
 #[cfg(test)]
 mod tests {
