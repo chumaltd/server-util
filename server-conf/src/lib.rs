@@ -60,7 +60,7 @@ impl BackendConfig {
         s.set_default("db.host", "localhost".to_string()).unwrap();
         s.set_default("db.port", 5432).unwrap();
         s.merge(File::with_name(CONFIG_FILE_PATH).required(false)).unwrap();
-        let env = env::var("RUST_CONF_ENV").unwrap_or_else(|_| "development".into());
+        let env = env::var("RUST_CONF_ENV").unwrap_or_else(|_| "test".into());
         s.merge(File::with_name(&format!("./config/{}", env)).required(false)).unwrap();
         s.merge(Environment::with_prefix("sv_").separator("__")).unwrap();
         s.try_into().unwrap()
