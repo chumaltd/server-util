@@ -53,17 +53,18 @@ pub struct MailConf {
 
 impl BackendConfig {
     pub fn new() -> Self {
-        let mut s = Config::new();
-        s.set_default("listen.host", "0.0.0.0".to_string()).unwrap();
-        s.set_default("listen.port", 50051).unwrap();
-        s.set_default("listen.domain", "".to_string()).unwrap();
-        s.set_default("db.host", "localhost".to_string()).unwrap();
-        s.set_default("db.port", 5432).unwrap();
-        s.merge(File::with_name(CONFIG_FILE_PATH).required(false)).unwrap();
         let env = env::var("RUST_CONF_ENV").unwrap_or_else(|_| "test".into());
-        s.merge(File::with_name(&format!("./config/{}", env)).required(false)).unwrap();
-        s.merge(Environment::with_prefix("sv_").separator("__")).unwrap();
-        s.try_into().unwrap()
+        let s = Config::builder()
+            .set_default("listen.host", "0.0.0.0".to_string()).unwrap()
+            .set_default("listen.port", 50051 as u16).unwrap()
+            .set_default("listen.domain", "".to_string()).unwrap()
+            .set_default("db.host", "localhost".to_string()).unwrap()
+            .set_default("db.port", 5432 as u16).unwrap()
+            .add_source(File::with_name(CONFIG_FILE_PATH).required(false))
+            .add_source(File::with_name(&format!("./config/{}", env)).required(false))
+            .add_source(Environment::with_prefix("sv_").separator("__"))
+            .build().unwrap();
+        s.try_deserialize().unwrap()
     }
 }
 
