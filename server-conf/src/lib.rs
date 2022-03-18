@@ -56,10 +56,10 @@ impl BackendConfig {
         let env = env::var("RUST_CONF_ENV").unwrap_or_else(|_| "test".into());
         let s = Config::builder()
             .set_default("listen.host", "0.0.0.0".to_string()).unwrap()
-            .set_default("listen.port", 50051u16).unwrap()
+            .set_default("listen.port", 50051i64).unwrap()
             .set_default("listen.domain", "".to_string()).unwrap()
             .set_default("db.host", "localhost".to_string()).unwrap()
-            .set_default("db.port", 5432u16).unwrap()
+            .set_default("db.port", 5432i64).unwrap()
             .add_source(File::with_name(CONFIG_FILE_PATH).required(false))
             .add_source(File::with_name(&format!("./config/{}", env)).required(false))
             .add_source(Environment::with_prefix("sv_").separator("__"))
