@@ -71,18 +71,21 @@ impl BackendConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::env::set_var;
 
     #[test]
     fn it_returns_default_config() {
-        set_var("sv__db__name", "some_database");
-        set_var("sv__db__user", "some_user");
-        set_var("sv__db__password", "some_password");
         assert_eq!(SV_CONF.listen.host, "0.0.0.0");
         assert_eq!(SV_CONF.listen.port, 50051);
         assert_eq!(SV_CONF.db.host, "localhost");
         assert_eq!(SV_CONF.db.port, 5432);
 
         assert_eq!(*SERVER_BIND, "0.0.0.0:50051".parse().unwrap());
+    }
+
+    #[test]
+    fn it_loads_test_toml() {
+        assert_eq!(SV_CONF.db.name, "some_database");
+        assert_eq!(SV_CONF.db.user, "some_user");
+        assert_eq!(SV_CONF.db.password, "some_password");
     }
 }

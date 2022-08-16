@@ -1,0 +1,5 @@
+# This config is just for unit testing
+[db]
+name = "some_database"
+user = "some_user"
+password = "some_password"
