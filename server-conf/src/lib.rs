@@ -1,4 +1,4 @@
-use config::{Config, ConfigError, Environment, File};
+use config::{Config, ConfigBuilder, Environment, File, builder::DefaultState};
 use once_cell::sync::Lazy;
 use serde::Deserialize;
 use std::env;
@@ -53,24 +53,38 @@ pub struct MailConf {
 
 impl BackendConfig {
     pub fn new() -> Self {
-        let env = env::var("RUST_CONF_ENV").unwrap_or_else(|_| "test".into());
-        let s = Config::builder()
+        let s = load_config_source()
             .set_default("listen.host", "0.0.0.0".to_string()).unwrap()
             .set_default("listen.port", 50051i64).unwrap()
             .set_default("listen.domain", "".to_string()).unwrap()
             .set_default("db.host", "localhost".to_string()).unwrap()
             .set_default("db.port", 5432i64).unwrap()
-            .add_source(File::with_name(CONFIG_FILE_PATH).required(false))
-            .add_source(File::with_name(&format!("./config/{}", env)).required(false))
-            .add_source(Environment::with_prefix("sv_").separator("__"))
             .build().unwrap();
         s.try_deserialize().unwrap()
     }
 }
 
+pub fn load_config_source() -> ConfigBuilder<DefaultState> {
+    let env = env::var("RUST_CONF_ENV").unwrap_or_else(|_| "test".into());
+    Config::builder()
+        .add_source(File::with_name(CONFIG_FILE_PATH).required(false))
+        .add_source(File::with_name(&format!("./config/{}", env)).required(false))
+        .add_source(Environment::with_prefix("sv_").separator("__"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[derive(Debug, Deserialize)]
+    struct ExtConf {
+        pub ext: Params
+    }
+
+    #[derive(Debug, Deserialize)]
+    struct Params {
+        pub param: String,
+    }
 
     #[test]
     fn it_returns_default_config() {
@@ -87,5 +101,12 @@ mod tests {
         assert_eq!(SV_CONF.db.name, "some_database");
         assert_eq!(SV_CONF.db.user, "some_user");
         assert_eq!(SV_CONF.db.password, "some_password");
+    }
+
+    #[test]
+    fn it_builds_extra_fields() {
+        let s = load_config_source().build().unwrap();
+        let conf: ExtConf = s.try_deserialize().unwrap();
+        assert_eq!(conf.ext.param, "some_parameter");
     }
 }

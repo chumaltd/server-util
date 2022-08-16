@@ -3,3 +3,6 @@
 name = "some_database"
 user = "some_user"
 password = "some_password"
+
+[ext]
+param = "some_parameter"
