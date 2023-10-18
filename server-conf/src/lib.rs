@@ -34,6 +34,8 @@ pub struct ServerConf {
 pub struct DbConf {
     pub name: String,
     pub host: String,
+    pub hosts: Option<Vec<String>>,
+    pub rhosts: Option<Vec<String>>,  // for Read Replica connection
     pub port: u16,
     pub user: String,
     pub password: String
