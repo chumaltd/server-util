@@ -18,6 +18,7 @@ pub static SERVER_BIND: Lazy<std::net::SocketAddr> = Lazy::new(|| {
 pub struct BackendConfig {
     pub listen: ServerConf,
     pub db: DbConf,
+    pub dbr: Option<DbConf>,  // for Read Replica connection
     pub redis: Option<RedisConf>,
     pub mail: Option<MailConf>,
 }
@@ -35,7 +36,6 @@ pub struct DbConf {
     pub name: String,
     pub host: String,
     pub hosts: Option<Vec<String>>,
-    pub rhosts: Option<Vec<String>>,  // for Read Replica connection
     pub port: u16,
     pub user: String,
     pub password: String
