@@ -2,8 +2,13 @@
 
 members = [
   "server-conf",
+  "pg-pool",
 ]
 resolver = "2"
 
 [workspace.package]
+authors = ["Chuma Takahiro <co.chuma@gmail.com>"]
 edition = "2021"
+
+[profile.release]
+strip = "debuginfo"
