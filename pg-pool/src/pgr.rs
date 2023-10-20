@@ -67,6 +67,15 @@ where
     }
 }
 
+pub async fn prepare_typed_cached(
+    query: &str,
+    types: &[types::Type],
+) -> Result<Statement, Box<dyn std::error::Error>> {
+    get().await?
+        .prepare_typed_cached(query, types).await
+        .map_err(|e| e.into() )
+}
+
 pub async fn get() -> Result<Client, PoolError> {
     match Lazy::force(&PGR_POOL) {
         Some(pool) => pool.get().await,
