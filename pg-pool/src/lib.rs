@@ -2,7 +2,7 @@ pub mod pg;
 pub mod pgr;
 pub use deadpool_postgres::{
     Pool, PoolError,
-    tokio_postgres::{Error, Row, Statement}
+    tokio_postgres::{Error, Row, Statement, types::Type}
 };
 
 use log::error;
