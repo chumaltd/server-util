@@ -18,29 +18,29 @@ async fn invalid_prepare_statement_pg() {
 
 #[tokio::test]
 async fn query_pp_recover_invalid_statement_pg() {
-    let _stmt = pg::prepare_typed_cached("SELECT 1 + $1", &[Type::INT8]).await.unwrap();
+    let _stmt = pg::prepare_typed_cached("SELECT 2 + $1", &[Type::INT8]).await.unwrap();
 
     invalidate_pg().await;
-    let result = pg::query_pp("SELECT 1 + $1", &[Type::INT8], &[&9i64]).await;
+    let result = pg::query_pp("SELECT 2 + $1", &[Type::INT8], &[&9i64]).await;
     assert!(result.is_ok());
     let data: i64 = result.unwrap()[0].get(0);
-    assert_eq!(data, 10i64);
+    assert_eq!(data, 11i64);
 }
 
 #[tokio::test]
 async fn query_one_pp_recover_invalid_statement_pg() {
-    let _stmt = pg::prepare_typed_cached("SELECT 1 + $1", &[Type::INT8]).await.unwrap();
+    let _stmt = pg::prepare_typed_cached("SELECT 3 + $1", &[Type::INT8]).await.unwrap();
 
     invalidate_pg().await;
-    let result = pg::query_one_pp("SELECT 1 + $1", &[Type::INT8], &[&9i64]).await;
+    let result = pg::query_one_pp("SELECT 3 + $1", &[Type::INT8], &[&9i64]).await;
     assert!(result.is_ok());
     let data: i64 = result.unwrap().get(0);
-    assert_eq!(data, 10i64);
+    assert_eq!(data, 12i64);
 }
 
 #[tokio::test]
 async fn invalid_prepare_statement_pgr() {
-    let stmt = pgr::prepare_typed_cached("SELECT 1 + $1", &[Type::INT8]).await.unwrap();
+    let stmt = pgr::prepare_typed_cached("SELECT 4 + $1", &[Type::INT8]).await.unwrap();
     let row = pgr::query_one(&stmt, &[&8i64]).await.unwrap();
 
     invalidate_pgr().await;
@@ -55,24 +55,24 @@ async fn invalid_prepare_statement_pgr() {
 
 #[tokio::test]
 async fn query_pp_recover_invalid_statement_pgr() {
-    let _stmt = pgr::prepare_typed_cached("SELECT 1 + $1", &[Type::INT8]).await.unwrap();
+    let _stmt = pgr::prepare_typed_cached("SELECT 5 + $1", &[Type::INT8]).await.unwrap();
 
     invalidate_pgr().await;
-    let result = pgr::query_pp("SELECT 1 + $1", &[Type::INT8], &[&9i64]).await;
+    let result = pgr::query_pp("SELECT 5 + $1", &[Type::INT8], &[&9i64]).await;
     assert!(result.is_ok());
     let data: i64 = result.unwrap()[0].get(0);
-    assert_eq!(data, 10i64);
+    assert_eq!(data, 14i64);
 }
 
 #[tokio::test]
 async fn query_one_pp_recover_invalid_statement_pgr() {
-    let _stmt = pgr::prepare_typed_cached("SELECT 1 + $1", &[Type::INT8]).await.unwrap();
+    let _stmt = pgr::prepare_typed_cached("SELECT 6 + $1", &[Type::INT8]).await.unwrap();
 
     invalidate_pgr().await;
-    let result = pgr::query_one_pp("SELECT 1 + $1", &[Type::INT8], &[&9i64]).await;
+    let result = pgr::query_one_pp("SELECT 6 + $1", &[Type::INT8], &[&9i64]).await;
     assert!(result.is_ok());
     let data: i64 = result.unwrap().get(0);
-    assert_eq!(data, 10i64);
+    assert_eq!(data, 15i64);
 }
 
 async fn invalidate_pg() {
