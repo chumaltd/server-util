@@ -33,14 +33,14 @@ pub async fn query_pp(
 {
     let client = pool.get().await?;
     let stmt = client.prepare_typed_cached(query, types).await?;
-    let result = self::query(pool, &stmt, params).await;
+    let result = client.query(&stmt, params).await;
     if result.is_ok() { return Ok(result?); }
 
     let err = result.unwrap_err();
     if err.is_closed() ||
         err.code() == Some(&SqlState::UNDEFINED_PSTATEMENT) {
             let stmt2 = client.prepare_typed_cached(query, types).await?;
-            return Ok(self::query(pool, &stmt2, params).await
+            return Ok(client.query(&stmt2, params).await
                       .map_err(|e| Box::new(e))?);
         }
     Err(Box::new(err))
@@ -67,14 +67,14 @@ pub async fn query_one_pp(
 {
     let client = pool.get().await?;
     let stmt = client.prepare_typed_cached(query, types).await?;
-    let result = query_one(pool, &stmt, params).await;
+    let result = client.query_one(&stmt, params).await;
     if result.is_ok() { return Ok(result?); }
 
     let err = result.unwrap_err();
     if err.is_closed() ||
         err.code() == Some(&SqlState::UNDEFINED_PSTATEMENT) {
             let stmt2 = client.prepare_typed_cached(query, types).await?;
-            return Ok(query_one(pool, &stmt2, params).await
+            return Ok(client.query_one(&stmt2, params).await
                       .map_err(|e| Box::new(e))?);
         }
     Err(Box::new(err))
