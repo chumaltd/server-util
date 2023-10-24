@@ -3,7 +3,7 @@ pub use deadpool_postgres::{
 };
 use deadpool_postgres::tokio_postgres::{
     Error, Statement, ToStatement,
-    row, types
+    error::SqlState, row, types
 };
 use crate::{PG_POOL, driver};
 
@@ -19,6 +19,27 @@ where
     T: ?Sized + ToStatement,
 {
     driver::query(&PG_POOL, statement, params).await
+}
+
+pub async fn query_pp(
+    query: &str,
+    types: &[types::Type],
+    params: &[&(dyn types::ToSql + Sync)]
+) -> Result<Vec<row::Row>, Box<dyn std::error::Error + Send + Sync + 'static>>
+{
+    let client = get().await?;
+    let stmt = client.prepare_typed_cached(query, types).await?;
+    let result = driver::query(&PG_POOL, &stmt, params).await;
+    if result.is_ok() { return Ok(result?); }
+
+    let err = result.unwrap_err();
+    if err.is_closed() ||
+        err.code() == Some(&SqlState::UNDEFINED_PSTATEMENT) {
+            let stmt2 = client.prepare_typed_cached(query, types).await?;
+            return Ok(driver::query(&PG_POOL, &stmt2, params).await
+                .map_err(|e| Box::new(e))?);
+        }
+    Err(Box::new(err))
 }
 
 pub async fn query_one<T>(
