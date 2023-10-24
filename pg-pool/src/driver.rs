@@ -39,6 +39,7 @@ pub async fn query_pp(
     let err = result.unwrap_err();
     if err.is_closed() ||
         err.code() == Some(&SqlState::UNDEFINED_PSTATEMENT) {
+            client.statement_cache.clear();
             let stmt2 = client.prepare_typed_cached(query, types).await?;
             return Ok(client.query(&stmt2, params).await
                       .map_err(|e| Box::new(e))?);
@@ -73,6 +74,7 @@ pub async fn query_one_pp(
     let err = result.unwrap_err();
     if err.is_closed() ||
         err.code() == Some(&SqlState::UNDEFINED_PSTATEMENT) {
+            client.statement_cache.clear();
             let stmt2 = client.prepare_typed_cached(query, types).await?;
             return Ok(client.query_one(&stmt2, params).await
                       .map_err(|e| Box::new(e))?);
