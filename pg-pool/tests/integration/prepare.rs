@@ -6,6 +6,6 @@ async fn invalid_prepare_statement() {
     let row = pg::query_one(&stmt, &[]).await.unwrap();
 
     pg::execute("DEALLOCATE ALL", &[]).await.unwrap();
-    let result = pg::query_one(&stmt, &[1i64]).await;
+    let result = pg::query_one(&stmt, &[&9i64]).await;
     assert!(result.is_err());
 }
