@@ -1,4 +1,5 @@
 use pg_pool::{pg, pgr, Type};
+use tokio_postgres::error::SqlState;
 
 #[tokio::test]
 async fn invalid_prepare_statement() {
@@ -8,5 +9,5 @@ async fn invalid_prepare_statement() {
     pg::execute("DEALLOCATE ALL", &[]).await.unwrap();
     let result = pg::query_one(&stmt, &[&9i64]).await;
     assert!(result.is_err());
-    assert!(result.unwrap_err().is_closed());
+    assert_eq!(SqlState::from_code("0000"), result.unwrap_err().code().unwrap());
 }
