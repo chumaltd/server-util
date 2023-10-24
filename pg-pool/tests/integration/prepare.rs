@@ -112,9 +112,9 @@ async fn invalidate_pgr() {
 }
 
 async fn disconnect_pg() {
-    pg::execute("DISCONNECT ALL", &[]).await.unwrap();
+    pg::execute("DISCONNECT", &[]).await.unwrap();
 }
 
 async fn disconnect_pgr() {
-    pgr::execute("DISCONNECT ALL", &[]).await.unwrap();
+    pgr::execute("DISCONNECT", &[]).await.unwrap();
 }
