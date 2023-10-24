@@ -3,10 +3,10 @@ pub use deadpool_postgres::{
 };
 use deadpool_postgres::tokio_postgres::{
     Error, Statement, ToStatement,
-    row, types
+    types::ToSql
 };
 use once_cell::sync::Lazy;
-use crate::{PGR_POOL, driver, pg};
+use crate::{PGR_POOL, Row, Type, driver, pg};
 
 pub async fn prepare(query: &str) -> Result<Statement, Error> {
     match Lazy::force(&PGR_POOL) {
@@ -17,8 +17,8 @@ pub async fn prepare(query: &str) -> Result<Statement, Error> {
 
 pub async fn query<T>(
     statement: &T,
-    params: &[&(dyn types::ToSql + Sync)]
-) -> Result<Vec<row::Row>, Error>
+    params: &[&(dyn ToSql + Sync)]
+) -> Result<Vec<Row>, Error>
 where
     T: ?Sized + ToStatement,
 {
@@ -28,10 +28,22 @@ where
     }
 }
 
+pub async fn query_pp(
+    query: &str,
+    types: &[Type],
+    params: &[&(dyn ToSql + Sync)]
+) -> Result<Vec<Row>, Box<dyn std::error::Error + Send + Sync + 'static>>
+{
+    match Lazy::force(&PGR_POOL) {
+        Some(pool) => driver::query_pp(pool, query, types, params).await,
+        None => pg::query_pp(query, types, params).await
+    }
+}
+
 pub async fn query_one<T>(
     statement: &T,
-    params: &[&(dyn types::ToSql + Sync)]
-) -> Result<row::Row, Error>
+    params: &[&(dyn ToSql + Sync)]
+) -> Result<Row, Error>
 where
     T: ?Sized + ToStatement,
 {
@@ -41,10 +53,22 @@ where
     }
 }
 
+pub async fn query_one_pp(
+    query: &str,
+    types: &[Type],
+    params: &[&(dyn ToSql + Sync)]
+) -> Result<Row, Box<dyn std::error::Error + Send + Sync + 'static>>
+{
+    match Lazy::force(&PGR_POOL) {
+        Some(pool) => driver::query_one_pp(pool, query, types, params).await,
+        None => pg::query_one_pp(query, types, params).await
+    }
+}
+
 pub async fn query_opt<T>(
     statement: &T,
-    params: &[&(dyn types::ToSql + Sync)]
-) -> Result<Option<row::Row>, Error>
+    params: &[&(dyn ToSql + Sync)]
+) -> Result<Option<Row>, Error>
 where
     T: ?Sized + ToStatement,
 {
@@ -56,7 +80,7 @@ where
 
 pub async fn execute<T>(
     statement: &T,
-    params: &[&(dyn types::ToSql + Sync)]
+    params: &[&(dyn ToSql + Sync)]
 ) -> Result<u64, Error>
 where
     T: ?Sized + ToStatement,
@@ -69,7 +93,7 @@ where
 
 pub async fn prepare_typed_cached(
     query: &str,
-    types: &[types::Type],
+    types: &[Type],
 ) -> Result<Statement, Box<dyn std::error::Error>> {
     get().await?
         .prepare_typed_cached(query, types).await

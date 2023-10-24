@@ -3,9 +3,9 @@ pub use deadpool_postgres::{
 };
 use deadpool_postgres::tokio_postgres::{
     Error, Statement, ToStatement,
-    error::SqlState, row, types
+    types::ToSql
 };
-use crate::{PG_POOL, driver};
+use crate::{PG_POOL, Row, Type, driver};
 
 pub async fn prepare(query: &str) -> Result<Statement, Error> {
     driver::prepare(&PG_POOL, query).await
@@ -13,8 +13,8 @@ pub async fn prepare(query: &str) -> Result<Statement, Error> {
 
 pub async fn query<T>(
     statement: &T,
-    params: &[&(dyn types::ToSql + Sync)]
-) -> Result<Vec<row::Row>, Error>
+    params: &[&(dyn ToSql + Sync)]
+) -> Result<Vec<Row>, Error>
 where
     T: ?Sized + ToStatement,
 {
@@ -23,39 +23,36 @@ where
 
 pub async fn query_pp(
     query: &str,
-    types: &[types::Type],
-    params: &[&(dyn types::ToSql + Sync)]
-) -> Result<Vec<row::Row>, Box<dyn std::error::Error + Send + Sync + 'static>>
+    types: &[Type],
+    params: &[&(dyn ToSql + Sync)]
+) -> Result<Vec<Row>, Box<dyn std::error::Error + Send + Sync + 'static>>
 {
-    let client = get().await?;
-    let stmt = client.prepare_typed_cached(query, types).await?;
-    let result = driver::query(&PG_POOL, &stmt, params).await;
-    if result.is_ok() { return Ok(result?); }
-
-    let err = result.unwrap_err();
-    if err.is_closed() ||
-        err.code() == Some(&SqlState::UNDEFINED_PSTATEMENT) {
-            let stmt2 = client.prepare_typed_cached(query, types).await?;
-            return Ok(driver::query(&PG_POOL, &stmt2, params).await
-                .map_err(|e| Box::new(e))?);
-        }
-    Err(Box::new(err))
+    driver::query_pp(&PG_POOL, query, types, params).await
 }
 
 pub async fn query_one<T>(
     statement: &T,
-    params: &[&(dyn types::ToSql + Sync)]
-) -> Result<row::Row, Error>
+    params: &[&(dyn ToSql + Sync)]
+) -> Result<Row, Error>
 where
     T: ?Sized + ToStatement,
 {
     driver::query_one(&PG_POOL, statement, params).await
 }
 
+pub async fn query_one_pp(
+    query: &str,
+    types: &[Type],
+    params: &[&(dyn ToSql + Sync)]
+) -> Result<Row, Box<dyn std::error::Error + Send + Sync + 'static>>
+{
+    driver::query_one_pp(&PG_POOL, query, types, params).await
+}
+
 pub async fn query_opt<T>(
     statement: &T,
-    params: &[&(dyn types::ToSql + Sync)]
-) -> Result<Option<row::Row>, Error>
+    params: &[&(dyn ToSql + Sync)]
+) -> Result<Option<Row>, Error>
 where
     T: ?Sized + ToStatement,
 {
@@ -64,7 +61,7 @@ where
 
 pub async fn execute<T>(
     statement: &T,
-    params: &[&(dyn types::ToSql + Sync)]
+    params: &[&(dyn ToSql + Sync)]
 ) -> Result<u64, Error>
 where
     T: ?Sized + ToStatement,
@@ -74,7 +71,7 @@ where
 
 pub async fn prepare_typed_cached(
     query: &str,
-    types: &[types::Type],
+    types: &[Type],
 ) -> Result<Statement, Box<dyn std::error::Error>> {
     get().await?
         .prepare_typed_cached(query, types).await
