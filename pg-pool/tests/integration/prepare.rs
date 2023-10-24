@@ -9,5 +9,5 @@ async fn invalid_prepare_statement() {
     pg::execute("DEALLOCATE ALL", &[]).await.unwrap();
     let result = pg::query_one(&stmt, &[&9i64]).await;
     assert!(result.is_err());
-    assert_eq!(SqlState::from_code("0000"), result.unwrap_err().code().unwrap().clone());
+    assert_eq!(SqlState::UNDEFINED_PSTATEMENT, result.unwrap_err().code().unwrap().clone());
 }
