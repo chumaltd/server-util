@@ -75,10 +75,46 @@ async fn query_one_pp_recover_invalid_statement_pgr() {
     assert_eq!(data, 15i64);
 }
 
+#[tokio::test]
+async fn query_pp_recover_disconnect_pg() {
+    let stmt = pg::prepare_typed_cached("SELECT 7 + $1", &[Type::INT8]).await.unwrap();
+
+    disconnect_pg().await;
+    let rows = pg::query(&stmt, &[&8i64]).await;
+    assert!(rows.unwrap_err().is_closed());
+
+    let result = pg::query_pp("SELECT 7 + $1", &[Type::INT8], &[&9i64]).await;
+    assert!(result.is_ok());
+    let data: i64 = result.unwrap()[0].get(0);
+    assert_eq!(data, 16i64);
+}
+
+#[tokio::test]
+async fn query_pp_recover_disconnect_pgr() {
+    let stmt = pgr::prepare_typed_cached("SELECT 8 + $1", &[Type::INT8]).await.unwrap();
+
+    disconnect_pgr().await;
+    let rows = pg::query(&stmt, &[&8i64]).await;
+    assert!(rows.unwrap_err().is_closed());
+
+    let result = pgr::query_pp("SELECT 8 + $1", &[Type::INT8], &[&9i64]).await;
+    assert!(result.is_ok());
+    let data: i64 = result.unwrap()[0].get(0);
+    assert_eq!(data, 17i64);
+}
+
 async fn invalidate_pg() {
     pg::execute("DEALLOCATE ALL", &[]).await.unwrap();
 }
 
 async fn invalidate_pgr() {
     pgr::execute("DEALLOCATE ALL", &[]).await.unwrap();
+}
+
+async fn disconnect_pg() {
+    pg::execute("DISCONNECT ALL", &[]).await.unwrap();
+}
+
+async fn disconnect_pgr() {
+    pgr::execute("DISCONNECT ALL", &[]).await.unwrap();
 }
