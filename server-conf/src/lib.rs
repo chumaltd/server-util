@@ -50,9 +50,9 @@ pub struct RedisConf {
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct MailConf {
-    pub api_key: String,
     pub from: String,
-    pub admin_addr: String
+    pub admin_addr: String,
+    pub api_key: Option<String>,
 }
 
 impl BackendConfig {
@@ -63,7 +63,6 @@ impl BackendConfig {
             .set_default("listen.domain", "".to_string()).unwrap()
             .set_default("db.host", "localhost".to_string()).unwrap()
             .set_default("db.port", 5432i64).unwrap()
-            .set_default("mail.api_key", "".to_string()).unwrap()
             .build().unwrap();
         s.try_deserialize().unwrap()
     }
