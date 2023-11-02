@@ -50,9 +50,9 @@ pub struct RedisConf {
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct MailConf {
-    pub api_key: String,
     pub from: String,
-    pub admin_addr: String
+    pub admin_addr: String,
+    pub api_key: Option<String>,
 }
 
 impl BackendConfig {
