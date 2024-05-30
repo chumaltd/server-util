@@ -5,7 +5,9 @@ use deadpool_postgres::tokio_postgres::{
     Error, Statement, ToStatement,
     types::ToSql
 };
+use log::debug;
 use once_cell::sync::Lazy;
+use server_conf::SV_CONF;
 use crate::{PGR_POOL, Row, Type, driver, pg};
 
 pub async fn prepare(query: &str) -> Result<Statement, Error> {
@@ -102,7 +104,15 @@ pub async fn prepare_typed_cached(
 
 pub async fn get() -> Result<Client, PoolError> {
     match Lazy::force(&PGR_POOL) {
-        Some(pool) => pool.get().await,
+        Some(pool) => {
+            let result = pool.get().await;
+            if SV_CONF.dbr.as_ref().unwrap().fallback && result.is_err() {
+                debug!("Fallback to writer DB: {}", result.unwrap_err());
+                return pg::get().await;
+            }
+
+            result
+        },
         None => pg::get().await
     }
 }
