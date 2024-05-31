@@ -38,12 +38,12 @@ pub fn create_pool(db: &DbConf) -> Result<Pool, String> {
     cfg.port = Some(db.port);
     cfg.user = Some(db.user.clone());
     cfg.password = Some(db.password.clone());
-    // Note: Runtime is also configurable.
+    // NOTE: Runtime is also configurable.
     cfg.manager = Some(ManagerConfig { recycling_method: RecyclingMethod::Fast });
     cfg.builder(NoTls)
         .map_err(|e| {
-            error!("{}", e);
-            "Cannot process pg config".to_string()
+            error!("{} {:?}", e,  SV_CONF.db);
+            format!("Cannot process pg config: {e}")
         })?
         .max_size(pool_max)
         .timeouts(timeout_millis)
@@ -51,6 +51,6 @@ pub fn create_pool(db: &DbConf) -> Result<Pool, String> {
         .build()
         .map_err(|e| {
             error!("{}", e);
-            "Cannot build pg pool".to_string()
+            format!("Cannot build pg pool: {e}")
         })
 }

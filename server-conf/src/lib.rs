@@ -15,6 +15,7 @@ pub static SERVER_BIND: Lazy<std::net::SocketAddr> = Lazy::new(|| {
 });
 
 #[derive(Debug, Deserialize, Clone)]
+#[serde(default)]
 pub struct BackendConfig {
     pub listen: ServerConf,
     pub db: DbConf,
@@ -23,7 +24,20 @@ pub struct BackendConfig {
     pub mail: Option<MailConf>,
 }
 
+impl Default for BackendConfig {
+    fn default() -> Self {
+        Self {
+            listen: ServerConf::default(),
+            db: DbConf::default(),
+            dbr: None,
+            redis: None,
+            mail: None
+        }
+    }
+}
+
 #[derive(Debug, Deserialize, Clone)]
+#[serde(default)]
 pub struct ServerConf {
     pub host: String,
     pub port: u16,
@@ -31,7 +45,19 @@ pub struct ServerConf {
     pub origin: Option<String>    // exposed origin name
 }
 
+impl Default for ServerConf {
+    fn default() -> Self {
+        Self {
+            host: "0.0.0.0".into(),
+            port: 50051,
+            domain: "".into(),
+            origin: None
+        }
+    }
+}
+
 #[derive(Debug, Deserialize, Clone)]
+#[serde(default)]
 pub struct DbConf {
     pub name: String,
     pub host: String,
@@ -42,6 +68,22 @@ pub struct DbConf {
     pub pool_max: Option<usize>,  // Max size of connection pool
     pub timeout: Option<u64>,     // Timeout in millisec for getting connection pool
     pub fallback: bool
+}
+
+impl Default for DbConf {
+    fn default() -> Self {
+        Self {
+            name: "".into(),
+            host: "localhost".into(),
+            hosts: None,
+            port: 5432,
+            user: "".into(),
+            password: "".into(),
+            pool_max: None,
+            timeout: None,
+            fallback: false
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -58,15 +100,9 @@ pub struct MailConf {
 
 impl BackendConfig {
     pub fn new() -> Self {
-        let s = load_config_source()
-            .set_default("listen.host", "0.0.0.0".to_string()).unwrap()
-            .set_default("listen.port", 50051i64).unwrap()
-            .set_default("listen.domain", "".to_string()).unwrap()
-            .set_default("db.host", "localhost".to_string()).unwrap()
-            .set_default("db.port", 5432i64).unwrap()
-            .set_default("db.fallback", false).unwrap()
-            .build().unwrap();
-        s.try_deserialize().unwrap()
+        load_config_source()
+            .build().unwrap()
+            .try_deserialize().unwrap()
     }
 }
 
