@@ -1,37 +1,47 @@
 use deadpool_postgres::{
-    Pool,
+    Client,
+    Pool, PoolError,
     tokio_postgres::{
         Error, Statement, ToStatement,
         error::SqlState, types::ToSql
     }
 };
-use crate::{Row, Type};
+use crate::{PG_POOL, PGR_POOL, Row, Type};
+use log::debug;
+use once_cell::sync::Lazy;
+use server_conf::SV_CONF;
 
-pub async fn prepare(pool: &Pool, query: &str) -> Result<Statement, Error> {
-    let client = pool.get().await.unwrap();
+#[derive(Copy, Clone, PartialEq)]
+pub enum PgPool {
+    Writer = 0,
+    Reader = 1,
+}
+
+pub async fn prepare(pool: PgPool, query: &str) -> Result<Statement, Error> {
+    let client = get(pool).await.unwrap();
     client.prepare(query).await
 }
 
 pub async fn query<T>(
-    pool: &Pool,
+    pool: PgPool,
     statement: &T,
     params: &[&(dyn ToSql + Sync)]
 ) -> Result<Vec<Row>, Error>
 where
     T: ?Sized + ToStatement,
 {
-    let client = pool.get().await.unwrap();
+    let client = get(pool).await.unwrap();
     client.query(statement, params).await
 }
 
 pub async fn query_pp(
-    pool: &Pool,
+    pool: PgPool,
     query: &str,
     types: &[Type],
     params: &[&(dyn ToSql + Sync)]
 ) -> Result<Vec<Row>, Box<dyn std::error::Error + Send + Sync + 'static>>
 {
-    let client = pool.get().await?;
+    let client = get(pool).await.unwrap();
     let stmt = client.prepare_typed_cached(query, types).await?;
     let result = client.query(&stmt, params).await;
     if result.is_ok() { return Ok(result?); }
@@ -48,25 +58,25 @@ pub async fn query_pp(
 }
 
 pub async fn query_one<T>(
-    pool: &Pool,
+    pool: PgPool,
     statement: &T,
     params: &[&(dyn ToSql + Sync)]
 ) -> Result<Row, Error>
 where
     T: ?Sized + ToStatement,
 {
-    let client = pool.get().await.unwrap();
+    let client = get(pool).await.unwrap();
     client.query_one(statement, params).await
 }
 
 pub async fn query_one_pp(
-    pool: &Pool,
+    pool: PgPool,
     query: &str,
     types: &[Type],
     params: &[&(dyn ToSql + Sync)]
 ) -> Result<Row, Box<dyn std::error::Error + Send + Sync + 'static>>
 {
-    let client = pool.get().await?;
+    let client = get(pool).await.unwrap();
     let stmt = client.prepare_typed_cached(query, types).await?;
     let result = client.query_one(&stmt, params).await;
     if result.is_ok() { return Ok(result?); }
@@ -83,27 +93,41 @@ pub async fn query_one_pp(
 }
 
 pub async fn query_opt<T>(
-    pool: &Pool,
+    pool: PgPool,
     statement: &T,
     params: &[&(dyn ToSql + Sync)]
 ) -> Result<Option<Row>, Error>
 where
     T: ?Sized + ToStatement,
 {
-    let client = pool.get().await.unwrap();
+    let client = get(pool).await.unwrap();
     client.query_opt(statement, params).await
 }
 
 pub async fn execute<T>(
-    pool: &Pool,
+    pool: PgPool,
     statement: &T,
     params: &[&(dyn ToSql + Sync)]
 ) -> Result<u64, Error>
 where
     T: ?Sized + ToStatement,
 {
-    let client = pool.get().await.unwrap();
+    let client = get(pool).await.unwrap();
     client.execute(statement, params).await
+}
+
+pub async fn get(pool: PgPool) -> Result<Client, PoolError> {
+    if pool == PgPool::Writer || Lazy::force(&PGR_POOL).is_none() {
+        return PG_POOL.get().await;
+    }
+
+    let result = PGR_POOL.as_ref().unwrap().get().await;
+    if SV_CONF.dbr.as_ref().unwrap().fallback && result.is_err() {
+        debug!("Fallback to writer DB: {}", result.unwrap_err());
+        return PG_POOL.get().await;
+    }
+
+    result
 }
 
 pub fn close(pool: &Pool) {

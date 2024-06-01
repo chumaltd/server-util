@@ -5,10 +5,10 @@ use deadpool_postgres::tokio_postgres::{
     Error, Statement, ToStatement,
     types::ToSql
 };
-use crate::{PG_POOL, Row, Type, driver};
+use crate::{PG_POOL, Row, Type, driver::{self, PgPool}};
 
 pub async fn prepare(query: &str) -> Result<Statement, Error> {
-    driver::prepare(&PG_POOL, query).await
+    driver::prepare(PgPool::Writer, query).await
 }
 
 pub async fn query<T>(
@@ -18,7 +18,7 @@ pub async fn query<T>(
 where
     T: ?Sized + ToStatement,
 {
-    driver::query(&PG_POOL, statement, params).await
+    driver::query(PgPool::Writer, statement, params).await
 }
 
 pub async fn query_pp(
@@ -27,7 +27,7 @@ pub async fn query_pp(
     params: &[&(dyn ToSql + Sync)]
 ) -> Result<Vec<Row>, Box<dyn std::error::Error + Send + Sync + 'static>>
 {
-    driver::query_pp(&PG_POOL, query, types, params).await
+    driver::query_pp(PgPool::Writer, query, types, params).await
 }
 
 pub async fn query_one<T>(
@@ -37,7 +37,7 @@ pub async fn query_one<T>(
 where
     T: ?Sized + ToStatement,
 {
-    driver::query_one(&PG_POOL, statement, params).await
+    driver::query_one(PgPool::Writer, statement, params).await
 }
 
 pub async fn query_one_pp(
@@ -46,7 +46,7 @@ pub async fn query_one_pp(
     params: &[&(dyn ToSql + Sync)]
 ) -> Result<Row, Box<dyn std::error::Error + Send + Sync + 'static>>
 {
-    driver::query_one_pp(&PG_POOL, query, types, params).await
+    driver::query_one_pp(PgPool::Writer, query, types, params).await
 }
 
 pub async fn query_opt<T>(
@@ -56,7 +56,7 @@ pub async fn query_opt<T>(
 where
     T: ?Sized + ToStatement,
 {
-    driver::query_opt(&PG_POOL, statement, params).await
+    driver::query_opt(PgPool::Writer, statement, params).await
 }
 
 pub async fn execute<T>(
@@ -66,7 +66,7 @@ pub async fn execute<T>(
 where
     T: ?Sized + ToStatement,
 {
-    driver::execute(&PG_POOL, statement, params).await
+    driver::execute(PgPool::Writer, statement, params).await
 }
 
 pub async fn prepare_typed_cached(
