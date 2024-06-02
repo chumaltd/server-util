@@ -5,10 +5,8 @@ use deadpool_postgres::tokio_postgres::{
     Error, Statement, ToStatement,
     types::ToSql
 };
-use log::debug;
 use once_cell::sync::Lazy;
-use server_conf::SV_CONF;
-use crate::{PGR_POOL, Row, Type, driver::{self, PgPool}, pg};
+use crate::{PGR_POOL, Row, Type, driver::{self, PgPool}};
 
 pub async fn prepare(query: &str) -> Result<Statement, Error> {
     driver::prepare(PgPool::Reader, query).await
