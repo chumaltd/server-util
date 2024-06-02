@@ -27,7 +27,7 @@ pub static PGR_POOL: Lazy<Option<Pool>> = Lazy::new(|| {
 
 pub fn create_pool(db: &DbConf) -> Result<Pool, String> {
     let pool_max: usize = db.pool_max.unwrap_or(1);
-    let timeouts = match SV_CONF.dbr.as_ref().unwrap().fallback {
+    let timeouts = match SV_CONF.dbr.as_ref().map(|dbr| dbr.fallback ).unwrap_or(false) {
         true => timeouts_object(db.timeout.unwrap_or(500), 900, 1500),
         false => Timeouts::wait_millis(db.timeout.unwrap_or(500))
     };
