@@ -8,8 +8,8 @@ use deadpool_postgres::{
 };
 use crate::{PG_POOL, PGR_POOL, Row, Type};
 use log::debug;
-use once_cell::sync::Lazy;
 use server_conf::SV_CONF;
+use std::sync::LazyLock;
 
 #[derive(Copy, Clone, PartialEq)]
 pub enum PgPool {
@@ -117,7 +117,7 @@ where
 }
 
 pub async fn get(pool: PgPool) -> Result<Client, PoolError> {
-    if pool == PgPool::Writer || Lazy::force(&PGR_POOL).is_none() {
+    if pool == PgPool::Writer || LazyLock::force(&PGR_POOL).is_none() {
         return PG_POOL.get().await;
     }
 

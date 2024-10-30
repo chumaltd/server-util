@@ -6,19 +6,19 @@ pub use deadpool_postgres::{
 };
 
 use log::error;
-use once_cell::sync::Lazy;
 use deadpool_postgres::{
     Config, ManagerConfig, RecyclingMethod, Runtime, Timeouts,
     tokio_postgres::{NoTls}
 };
 use server_conf::{SV_CONF, DbConf};
+use std::sync::LazyLock;
 use std::time::Duration;
 mod driver;
 
-pub static PG_POOL: Lazy<Pool> = Lazy::new(|| create_pool(&SV_CONF.db).unwrap());
+pub static PG_POOL: LazyLock<Pool> = LazyLock::new(|| create_pool(&SV_CONF.db).unwrap());
 
 // Connection pool for read replica
-pub static PGR_POOL: Lazy<Option<Pool>> = Lazy::new(|| {
+pub static PGR_POOL: LazyLock<Option<Pool>> = LazyLock::new(|| {
     match &SV_CONF.dbr {
         Some(dbr) => Some(create_pool(dbr).unwrap()),
         None => None

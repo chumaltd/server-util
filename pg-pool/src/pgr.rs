@@ -5,7 +5,7 @@ use deadpool_postgres::tokio_postgres::{
     Error, Statement, ToStatement,
     types::ToSql
 };
-use once_cell::sync::Lazy;
+use std::sync::LazyLock;
 use crate::{PGR_POOL, Row, Type, driver::{self, PgPool}};
 
 pub async fn prepare(query: &str) -> Result<Statement, Error> {
@@ -84,7 +84,7 @@ pub async fn get() -> Result<Client, PoolError> {
 }
 
 pub fn close() {
-    if let Some(pool) = Lazy::force(&PGR_POOL) {
+    if let Some(pool) = LazyLock::force(&PGR_POOL) {
         driver::close(pool);
     }
 }

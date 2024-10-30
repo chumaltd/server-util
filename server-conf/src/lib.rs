@@ -1,15 +1,17 @@
 use config::{Config, ConfigBuilder, Environment, File, builder::DefaultState};
-use once_cell::sync::Lazy;
 use serde::Deserialize;
 use std::env;
+use std::net::SocketAddr;
+use std::sync::LazyLock;
 
 const CONFIG_FILE_PATH: &str = "./config/default";
 
-pub static SV_CONF: Lazy<BackendConfig> = Lazy::new(|| BackendConfig::new());
+pub static SV_CONF: LazyLock<BackendConfig> = LazyLock::new(|| BackendConfig::new());
 
 /// listen IP & port. Default "0.0.0.0:50051" for gRPC.
-pub static SERVER_BIND: Lazy<std::net::SocketAddr> = Lazy::new(|| {
-    format!("{}:{}", SV_CONF.listen.host,
+pub static SERVER_BIND: LazyLock<SocketAddr> = LazyLock::new(|| {
+    format!("{}:{}",
+            SV_CONF.listen.host,
             SV_CONF.listen.port.to_string())
         .parse().unwrap()
 });

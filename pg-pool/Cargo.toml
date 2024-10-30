@@ -1,13 +1,13 @@
 [package]
 name = "pg-pool"
-version = "0.7.4"
+version = "0.8.0"
+rust-version = "1.80"
 edition.workspace = true
 authors.workspace = true
 
 [dependencies]
-deadpool-postgres = "0.13"
+deadpool-postgres = "0.14"
 log = "0.4"
-once_cell = "1.19"
 server-conf = { path = "../server-conf" }
 tokio-postgres = { version = "0.7" }
 
