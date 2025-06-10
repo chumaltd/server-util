@@ -8,7 +8,7 @@ resolver = "2"
 
 [workspace.package]
 authors = ["Chuma Takahiro <co.chuma@gmail.com>"]
-edition = "2021"
+edition = "2024"
 
 [profile.release]
 strip = "debuginfo"

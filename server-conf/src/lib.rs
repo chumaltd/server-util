@@ -8,7 +8,7 @@ const CONFIG_FILE_PATH: &str = "./config/default";
 
 pub static SV_CONF: LazyLock<BackendConfig> = LazyLock::new(|| BackendConfig::new());
 
-/// listen IP & port. Default "0.0.0.0:50051" for gRPC.
+/// listen IP & port. Default "[::]:50051" for gRPC.
 pub static SERVER_BIND: LazyLock<SocketAddr> = LazyLock::new(|| {
     format!("{}:{}",
             SV_CONF.listen.host,
@@ -44,15 +44,17 @@ pub struct ServerConf {
     pub host: String,
     pub port: u16,
     pub domain: String,
-    pub origin: Option<String>    // exposed origin name
+    pub basedir: Option<String>,   // for deployment under a subpath
+    pub origin: Option<String>     // exposed origin name
 }
 
 impl Default for ServerConf {
     fn default() -> Self {
         Self {
-            host: "0.0.0.0".into(),
+            host: "[::]".into(),
             port: 50051,
             domain: "".into(),
+            basedir: None,
             origin: None
         }
     }
@@ -112,7 +114,7 @@ pub fn load_config_source() -> ConfigBuilder<DefaultState> {
     let env = env::var("RUST_CONF_ENV").unwrap_or_else(|_| "test".into());
     Config::builder()
         .add_source(File::with_name(CONFIG_FILE_PATH).required(false))
-        .add_source(File::with_name(&format!("./config/{}", env)).required(false))
+        .add_source(File::with_name(&format!("./config/{env}", )).required(false))
         .add_source(Environment::with_prefix("sv_").separator("__"))
 }
 
@@ -132,12 +134,14 @@ mod tests {
 
     #[test]
     fn it_returns_default_config() {
-        assert_eq!(SV_CONF.listen.host, "0.0.0.0");
+        assert_eq!(SV_CONF.listen.host, "[::]");
         assert_eq!(SV_CONF.listen.port, 50051);
+        assert_eq!(SV_CONF.listen.basedir, None);
+        assert_eq!(SV_CONF.listen.origin, None);
         assert_eq!(SV_CONF.db.host, "localhost");
         assert_eq!(SV_CONF.db.port, 5432);
 
-        assert_eq!(*SERVER_BIND, "0.0.0.0:50051".parse().unwrap());
+        assert_eq!(*SERVER_BIND, "[::]:50051".parse().unwrap());
     }
 
     #[test]
