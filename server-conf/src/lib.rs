@@ -1,5 +1,6 @@
 use std::net::SocketAddr;
 use regex::Regex;
+use serde::Deserialize;
 use std::sync::LazyLock;
 
 mod schema;
@@ -20,20 +21,29 @@ pub static SERVER_BIND: LazyLock<SocketAddr> = LazyLock::new(|| {
 });
 
 pub fn abs_path(path: &str) -> String {
-    let re = Regex::new(r"^/*(.+)/*$").unwrap();
-    let basedir = SV_CONF.listen.basedir.as_ref()
-        .and_then(|s| re.captures(s))
-        .and_then(|cap| cap.get(1))
-        .map(|m| m.as_str());
-    let re = Regex::new(r"^/*(.+)$").unwrap();
-    let path = re.captures(path)
-        .and_then(|cap| cap.get(1))
-        .map(|m| m.as_str())
+    abs_path_with_default(path, "")
+}
+
+#[inline]
+pub fn abs_path_with_default(path: &str, default_basedir: &str) -> String {
+    let basedir = SV_CONF.listen.basedir.as_ref().map(|s| s.as_str())
+        .or(Some(default_basedir))
+        .and_then(|s| capture_path(RE_BASEDIR, s));
+    let path = capture_path(RE_PATH, path)
         .unwrap_or("");
     match basedir {
         Some(basedir) => format!("/{basedir}/{path}"),
         None => format!("/{path}")
     }
+}
+
+const RE_BASEDIR: &str = r"^/*([^/].*?)/*$";
+const RE_PATH: &str = r"^/*([^/].*)$";
+
+fn capture_path<'a>(regex: &str, path: &'a str) -> Option<&'a str> {
+    let re = Regex::new(regex).unwrap();
+    re.captures(path)
+        .and_then(|cap| cap.get(1).map(|m| m.as_str()))
 }
 
 #[cfg(test)]
@@ -74,5 +84,37 @@ mod tests {
         let s = load_config_source().build().unwrap();
         let conf: ExtConf = s.try_deserialize().unwrap();
         assert_eq!(conf.ext.param, "some_parameter");
+    }
+
+    #[test]
+    fn it_returns_dir_as_abs_path() {
+        assert_eq!(abs_path("dir"), "/dir");
+        assert_eq!(abs_path("/dir"), "/dir");
+        assert_eq!(abs_path("/"), "/");
+        assert_eq!(abs_path(""), "/");
+    }
+
+    #[test]
+    fn it_returns_dir_with_default_prefix() {
+        assert_eq!(abs_path_with_default("dir", "base"), "/base/dir");
+        assert_eq!(abs_path_with_default("/dir", "base"), "/base/dir");
+        assert_eq!(abs_path_with_default("dir", "/base"), "/base/dir");
+        assert_eq!(abs_path_with_default("dir", "/base/"), "/base/dir");
+        assert_eq!(abs_path_with_default("/", "base"), "/base/");
+        assert_eq!(abs_path_with_default("", "base"), "/base/");
+    }
+
+    #[test]
+    fn it_captures_dir_fragment() {
+        assert_eq!(capture_path(RE_BASEDIR, "dir"), Some("dir"));
+        assert_eq!(capture_path(RE_PATH, "dir"), Some("dir"));
+        assert_eq!(capture_path(RE_BASEDIR, "/dir/"), Some("dir"));
+        assert_eq!(capture_path(RE_PATH, "/dir/"), Some("dir/"));
+        assert_eq!(capture_path(RE_BASEDIR, "//dir//"), Some("dir"));
+        assert_eq!(capture_path(RE_PATH, "//dir//"), Some("dir//"));
+        assert_eq!(capture_path(RE_BASEDIR, "dir/"), Some("dir"));
+        assert_eq!(capture_path(RE_PATH, "dir/"), Some("dir/"));
+        assert_eq!(capture_path(RE_BASEDIR, ""), None);
+        assert_eq!(capture_path(RE_PATH, ""), None);
     }
 }
