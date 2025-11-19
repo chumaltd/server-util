@@ -95,6 +95,8 @@ pub struct RedisConf {
 pub struct MailConf {
     pub from: String,
     pub admin_addr: String,
+    pub api_host: String,
+    pub api_user: Option<String>,
     pub api_key: Option<String>,
 }
 
