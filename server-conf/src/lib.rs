@@ -1,6 +1,5 @@
 use std::net::SocketAddr;
 use regex::Regex;
-use serde::Deserialize;
 use std::sync::LazyLock;
 
 mod schema;

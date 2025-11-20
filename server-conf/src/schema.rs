@@ -96,6 +96,7 @@ pub struct MailConf {
     pub from: String,
     pub admin_addr: String,
     pub api_host: String,
+    pub api_port: Option<u16>,
     pub api_user: Option<String>,
     pub api_key: Option<String>,
 }

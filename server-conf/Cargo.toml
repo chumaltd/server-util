@@ -1,6 +1,6 @@
 [package]
 name = "server-conf"
-version = "0.10.0"
+version = "0.10.1"
 rust-version = "1.85"
 authors.workspace = true
 edition.workspace = true
