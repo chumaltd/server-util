@@ -99,6 +99,10 @@ pub struct MailConf {
     pub api_port: Option<u16>,
     pub api_user: Option<String>,
     pub api_key: Option<String>,
+    pub tls_root_cert: Option<String>,
+    pub tls_verify_host: Option<bool>,
+    pub tls_client_cert: Option<String>,
+    pub tls_client_key: Option<String>,
 }
 
 pub fn load_config_source() -> ConfigBuilder<DefaultState> {
