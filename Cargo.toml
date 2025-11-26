@@ -2,6 +2,7 @@
 
 members = [
   "server-conf",
+  "smtp-pool",
   "pg-pool",
 ]
 resolver = "2"
