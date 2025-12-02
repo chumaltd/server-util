@@ -101,6 +101,7 @@ pub struct MailConf {
     pub api_key: Option<String>,
     pub pool_max: Option<u32>,
     pub pool_idle: Option<u32>,
+    pub sender_host: Option<String>,
     pub tls_root_cert: Option<String>,
     pub tls_verify_host: Option<bool>,
     pub tls_client_cert: Option<String>,

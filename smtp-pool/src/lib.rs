@@ -3,6 +3,7 @@ use lettre::{
         self,
         authentication::Credentials,
         client::{Certificate, Identity, Tls, TlsParameters},
+        extension::ClientId,
         PoolConfig, SUBMISSIONS_PORT,
     },
     AsyncSmtpTransport, Tokio1Executor,
@@ -35,6 +36,11 @@ fn mailer(mail_conf: &MailConf) -> Result<AsyncSmtpTransport<Tokio1Executor>, sm
             smtp_user.to_string(),
             smtp_pass.to_string()
         ))
+    } else {
+        builder
+    };
+    let builder = if let Some(hello_host) = mail_conf.sender_host.as_ref() {
+        builder.hello_name(ClientId::Domain(hello_host.to_string()))
     } else {
         builder
     };
