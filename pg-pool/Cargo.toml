@@ -1,6 +1,6 @@
 [package]
 name = "pg-pool"
-version = "0.8.0"
+version = "0.8.1"
 rust-version = "1.85"
 edition.workspace = true
 authors.workspace = true
@@ -9,6 +9,7 @@ authors.workspace = true
 deadpool-postgres = "0.14"
 log = "0.4"
 server-conf = { path = "../server-conf" }
+tokio = { version = "1", features = ["time"] }
 tokio-postgres = { version = "0.7" }
 
 [dev-dependencies]

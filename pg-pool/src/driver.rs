@@ -6,10 +6,12 @@ use deadpool_postgres::{
         error::SqlState, types::ToSql
     }
 };
+use deadpool_postgres::TimeoutType;
 use crate::{PG_POOL, PGR_POOL, Row, Type};
-use log::debug;
+use log::{debug, warn};
 use server_conf::SV_CONF;
 use std::sync::LazyLock;
+use std::time::Duration;
 
 #[derive(Copy, Clone, PartialEq)]
 pub enum PgPool {
@@ -118,16 +120,42 @@ where
 
 pub async fn get(pool: PgPool) -> Result<Client, PoolError> {
     if pool == PgPool::Writer || LazyLock::force(&PGR_POOL).is_none() {
-        return PG_POOL.get().await;
+        return get_with_retry(&PG_POOL).await;
     }
 
-    let result = PGR_POOL.as_ref().unwrap().get().await;
+    let result = get_with_retry(PGR_POOL.as_ref().unwrap()).await;
     if SV_CONF.dbr.as_ref().unwrap().fallback && result.is_err() {
         debug!("Fallback to writer DB: {}", result.unwrap_err());
-        return PG_POOL.get().await;
+        return get_with_retry(&PG_POOL).await;
     }
 
     result
+}
+
+const MAX_RETRIES: usize = 2;
+const BACKOFF_MS: [u64; 2] = [200, 500];
+
+async fn get_with_retry(pool: &Pool) -> Result<Client, PoolError> {
+    let mut last_err = None;
+    for attempt in 0..=MAX_RETRIES {
+        match pool.get().await {
+            Ok(client) => return Ok(client),
+            Err(e) => {
+                let retryable = matches!(&e,
+                    PoolError::Timeout(TimeoutType::Create) |
+                    PoolError::Timeout(TimeoutType::Recycle) |
+                    PoolError::Backend(_)
+                );
+                if !retryable || attempt == MAX_RETRIES {
+                    return Err(e);
+                }
+                warn!("Pool get failed (attempt {}/{}): {}", attempt + 1, MAX_RETRIES + 1, e);
+                tokio::time::sleep(Duration::from_millis(BACKOFF_MS[attempt])).await;
+                last_err = Some(e);
+            }
+        }
+    }
+    Err(last_err.unwrap())
 }
 
 pub fn close(pool: &Pool) {

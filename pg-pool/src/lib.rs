@@ -27,10 +27,11 @@ pub static PGR_POOL: LazyLock<Option<Pool>> = LazyLock::new(|| {
 
 pub fn create_pool(db: &DbConf) -> Result<Pool, String> {
     let pool_max: usize = db.pool_max.unwrap_or(1);
-    let timeouts = match SV_CONF.dbr.as_ref().map(|dbr| dbr.fallback ).unwrap_or(false) {
-        true => timeouts_object(db.timeout.unwrap_or(500), 900, 1500),
-        false => Timeouts::wait_millis(db.timeout.unwrap_or(500))
+    let create_timeout = match SV_CONF.dbr.as_ref().map(|dbr| dbr.fallback).unwrap_or(false) {
+        true => 1000,   // reader with fallback: fail faster
+        false => 3000,
     };
+    let timeouts = timeouts_object(db.timeout.unwrap_or(500), create_timeout, 1500);
 
     let mut cfg = Config::new();
     cfg.dbname = Some(db.name.clone());
@@ -43,7 +44,7 @@ pub fn create_pool(db: &DbConf) -> Result<Pool, String> {
     cfg.user = Some(db.user.clone());
     cfg.password = Some(db.password.clone());
     // NOTE: Runtime is also configurable.
-    cfg.manager = Some(ManagerConfig { recycling_method: RecyclingMethod::Fast });
+    cfg.manager = Some(ManagerConfig { recycling_method: RecyclingMethod::Verified });
     cfg.builder(NoTls)
         .map_err(|e| {
             error!("{} {:?}", e,  SV_CONF.db);
