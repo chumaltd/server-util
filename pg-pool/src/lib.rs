@@ -1,5 +1,28 @@
 pub mod pg;
 pub mod pgr;
+
+/// RAII guard that closes [`PG_POOL`] and [`PGR_POOL`] on drop.
+///
+/// Obtain via [`pool_guard()`]. Typical usage:
+/// ```ignore
+/// let _guard = pg_pool::pool_guard();
+/// // ... use pools ...
+/// // pools are closed when _guard goes out of scope
+/// ```
+pub struct PoolGuard;
+
+/// Returns a [`PoolGuard`] that closes both pools when dropped.
+pub fn pool_guard() -> PoolGuard {
+    PoolGuard
+}
+
+impl Drop for PoolGuard {
+    fn drop(&mut self) {
+        pg::close();
+        pgr::close();
+    }
+}
+
 pub use deadpool_postgres::{
     Pool, PoolError,
     tokio_postgres::{Error, Row, Statement, types::Type}
