@@ -43,20 +43,21 @@ pub async fn query_pp(
     params: &[&(dyn ToSql + Sync)]
 ) -> Result<Vec<Row>, Box<dyn std::error::Error + Send + Sync + 'static>>
 {
-    let client = get(pool).await.unwrap();
+    let (client, origin) = get_with_origin(pool).await.unwrap();
     let stmt = client.prepare_typed_cached(query, types).await?;
     let result = client.query(&stmt, params).await;
     if result.is_ok() { return Ok(result?); }
 
     let err = result.unwrap_err();
-    if err.is_closed() ||
-        err.code() == Some(&SqlState::UNDEFINED_PSTATEMENT) {
-            client.statement_cache.clear();
-            let stmt2 = client.prepare_typed_cached(query, types).await?;
-            return Ok(client.query(&stmt2, params).await
-                      .map_err(|e| Box::new(e))?);
-        }
-    Err(Box::new(err))
+    if !(err.is_closed() || err.code() == Some(&SqlState::UNDEFINED_PSTATEMENT)) {
+        return Err(Box::new(err));
+    }
+
+    client.statement_cache.clear();
+    drop(client);
+    let (fresh, _) = get_fresh(pool, origin).await?;
+    let stmt2 = fresh.prepare_typed_cached(query, types).await?;
+    Ok(fresh.query(&stmt2, params).await.map_err(|e| Box::new(e))?)
 }
 
 pub async fn query_one<T>(
@@ -78,20 +79,21 @@ pub async fn query_one_pp(
     params: &[&(dyn ToSql + Sync)]
 ) -> Result<Row, Box<dyn std::error::Error + Send + Sync + 'static>>
 {
-    let client = get(pool).await.unwrap();
+    let (client, origin) = get_with_origin(pool).await.unwrap();
     let stmt = client.prepare_typed_cached(query, types).await?;
     let result = client.query_one(&stmt, params).await;
     if result.is_ok() { return Ok(result?); }
 
     let err = result.unwrap_err();
-    if err.is_closed() ||
-        err.code() == Some(&SqlState::UNDEFINED_PSTATEMENT) {
-            client.statement_cache.clear();
-            let stmt2 = client.prepare_typed_cached(query, types).await?;
-            return Ok(client.query_one(&stmt2, params).await
-                      .map_err(|e| Box::new(e))?);
-        }
-    Err(Box::new(err))
+    if !(err.is_closed() || err.code() == Some(&SqlState::UNDEFINED_PSTATEMENT)) {
+        return Err(Box::new(err));
+    }
+
+    client.statement_cache.clear();
+    drop(client);
+    let (fresh, _) = get_fresh(pool, origin).await?;
+    let stmt2 = fresh.prepare_typed_cached(query, types).await?;
+    Ok(fresh.query_one(&stmt2, params).await.map_err(|e| Box::new(e))?)
 }
 
 pub async fn query_opt<T>(
@@ -119,17 +121,39 @@ where
 }
 
 pub async fn get(pool: PgPool) -> Result<Client, PoolError> {
+    get_with_origin(pool).await.map(|(c, _)| c)
+}
+
+pub(crate) async fn get_with_origin(pool: PgPool)
+    -> Result<(Client, &'static Pool), PoolError>
+{
     if pool == PgPool::Writer || LazyLock::force(&PGR_POOL).is_none() {
-        return get_with_retry(&PG_POOL).await;
+        let client = get_with_retry(LazyLock::force(&PG_POOL)).await?;
+        return Ok((client, LazyLock::force(&PG_POOL)));
     }
 
-    let result = get_with_retry(PGR_POOL.as_ref().unwrap()).await;
-    if SV_CONF.dbr.as_ref().unwrap().fallback && result.is_err() {
-        debug!("Fallback to writer DB: {}", result.unwrap_err());
-        return get_with_retry(&PG_POOL).await;
+    let pgr: &'static Pool = LazyLock::force(&PGR_POOL).as_ref().unwrap();
+    let result = get_with_retry(pgr).await;
+    match result {
+        Ok(client) => Ok((client, pgr)),
+        Err(e) => {
+            if SV_CONF.dbr.as_ref().unwrap().fallback {
+                debug!("Fallback to writer DB: {e}");
+                let client = get_with_retry(LazyLock::force(&PG_POOL)).await?;
+                Ok((client, LazyLock::force(&PG_POOL)))
+            } else {
+                Err(e)
+            }
+        }
     }
+}
 
-    result
+async fn get_fresh(
+    pool: PgPool,
+    prev_origin: &'static Pool,
+) -> Result<(Client, &'static Pool), PoolError> {
+    prev_origin.manager().statement_caches.clear();
+    get_with_origin(pool).await
 }
 
 const MAX_RETRIES: usize = 2;
@@ -139,6 +163,16 @@ async fn get_with_retry(pool: &Pool) -> Result<Client, PoolError> {
     let mut last_err = None;
     for attempt in 0..=MAX_RETRIES {
         match pool.get().await {
+            Ok(client) if client.is_closed() => {
+                // RST received while idle: drop the dead connection and retry immediately.
+                // Dropping triggers deadpool recycle which discards the connection and
+                // replenishes the pool slot, so the next iteration gets a fresh one.
+                if attempt == MAX_RETRIES {
+                    return Err(last_err.unwrap_or(PoolError::Timeout(TimeoutType::Recycle)));
+                }
+                warn!("Pool returned closed connection (attempt {}/{}), retrying",
+                    attempt + 1, MAX_RETRIES + 1);
+            }
             Ok(client) => return Ok(client),
             Err(e) => {
                 let retryable = matches!(&e,
@@ -155,12 +189,13 @@ async fn get_with_retry(pool: &Pool) -> Result<Client, PoolError> {
             }
         }
     }
-    Err(last_err.unwrap())
+    Err(last_err.unwrap_or(PoolError::Timeout(TimeoutType::Recycle)))
 }
 
 pub fn close(pool: &Pool) {
     pool.close();
 }
+
 
 #[cfg(test)]
 mod tests {

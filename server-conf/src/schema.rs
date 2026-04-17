@@ -67,7 +67,9 @@ pub struct DbConf {
     pub password: String,
     pub pool_max: Option<usize>,  // Max size of connection pool
     pub timeout: Option<u64>,     // Timeout in millisec for getting connection pool
-    pub fallback: bool
+    pub fallback: bool,
+    pub application_name: Option<String>,
+    pub schema: Option<String>,
 }
 
 impl Default for DbConf {
@@ -81,7 +83,9 @@ impl Default for DbConf {
             password: "".into(),
             pool_max: None,
             timeout: None,
-            fallback: false
+            fallback: false,
+            application_name: None,
+            schema: None,
         }
     }
 }

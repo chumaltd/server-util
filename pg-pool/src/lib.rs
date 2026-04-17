@@ -30,25 +30,25 @@ pub use deadpool_postgres::{
 
 use log::error;
 use deadpool_postgres::{
-    Config, ManagerConfig, RecyclingMethod, Runtime, Timeouts,
-    tokio_postgres::{NoTls}
+    Config, Hook, HookError, ManagerConfig, RecyclingMethod, Runtime, Timeouts,
+    tokio_postgres::NoTls,
 };
 use server_conf::{SV_CONF, DbConf};
 use std::sync::LazyLock;
 use std::time::Duration;
 mod driver;
 
-pub static PG_POOL: LazyLock<Pool> = LazyLock::new(|| create_pool(&SV_CONF.db).unwrap());
+pub static PG_POOL: LazyLock<Pool> = LazyLock::new(|| create_pool(&SV_CONF.db, "w").unwrap());
 
 // Connection pool for read replica
 pub static PGR_POOL: LazyLock<Option<Pool>> = LazyLock::new(|| {
     match &SV_CONF.dbr {
-        Some(dbr) => Some(create_pool(dbr).unwrap()),
+        Some(dbr) => Some(create_pool(dbr, "r").unwrap()),
         None => None
     }
 });
 
-pub fn create_pool(db: &DbConf) -> Result<Pool, String> {
+pub fn create_pool(db: &DbConf, role: &str) -> Result<Pool, String> {
     let pool_max: usize = db.pool_max.unwrap_or(1);
     let create_timeout = match SV_CONF.dbr.as_ref().map(|dbr| dbr.fallback).unwrap_or(false) {
         true => 1000,   // reader with fallback: fail faster
@@ -66,21 +66,36 @@ pub fn create_pool(db: &DbConf) -> Result<Pool, String> {
     cfg.port = Some(db.port);
     cfg.user = Some(db.user.clone());
     cfg.password = Some(db.password.clone());
+    cfg.application_name = db.application_name.as_deref().map(|n| format!("{n}-{role}"));
+    cfg.keepalives = Some(true);
+    cfg.keepalives_idle = Some(Duration::from_secs(60));
     // NOTE: Runtime is also configurable.
     cfg.manager = Some(ManagerConfig { recycling_method: RecyclingMethod::Verified });
-    cfg.builder(NoTls)
+    let mut builder = cfg.builder(NoTls)
         .map_err(|e| {
-            error!("{} {:?}", e,  SV_CONF.db);
+            error!("{} {:?}", e, SV_CONF.db);
             format!("Cannot process pg config: {e}")
         })?
         .max_size(pool_max)
         .timeouts(timeouts)
-        .runtime(Runtime::Tokio1)
-        .build()
-        .map_err(|e| {
-            error!("{}", e);
-            format!("Cannot build pg pool: {e}")
-        })
+        .runtime(Runtime::Tokio1);
+
+    if let Some(schema) = db.schema.clone() {
+        builder = builder.post_create(Hook::async_fn(move |client, _| {
+            let schema = schema.clone();
+            Box::pin(async move {
+                client.simple_query(&format!("SET search_path TO \"{schema}\""))
+                    .await
+                    .map(|_| ())
+                    .map_err(HookError::Backend)
+            })
+        }));
+    }
+
+    builder.build().map_err(|e| {
+        error!("{e}");
+        format!("Cannot build pg pool: {e}")
+    })
 }
 
 fn timeouts_object(wait: u64, create: u64, recycle: u64) -> Timeouts {
