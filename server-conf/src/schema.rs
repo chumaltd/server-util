@@ -117,5 +117,5 @@ pub fn load_config_source() -> ConfigBuilder<DefaultState> {
     Config::builder()
         .add_source(File::with_name(CONFIG_FILE_PATH).required(false))
         .add_source(File::with_name(&format!("./config/{env}", )).required(false))
-        .add_source(Environment::with_prefix("sv_").separator("__"))
+        .add_source(Environment::with_prefix("sv").separator("__"))
 }

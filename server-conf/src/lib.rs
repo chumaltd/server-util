@@ -48,6 +48,7 @@ fn capture_path<'a>(regex: &str, path: &'a str) -> Option<&'a str> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde::Deserialize;
 
     #[derive(Debug, Deserialize)]
     struct ExtConf {
