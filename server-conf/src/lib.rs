@@ -5,7 +5,7 @@ use std::sync::LazyLock;
 mod schema;
 pub use schema::{
     BackendConfig,
-    ServerConf, DbConf, RedisConf, MailConf,
+    ServerConf, MtlsConf, TlsConf, DbConf, RedisConf, MailConf,
     load_config_source,
 };
 

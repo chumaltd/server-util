@@ -12,6 +12,7 @@ pub struct BackendConfig {
     pub dbr: Option<DbConf>,      // for Read Replica connection
     pub redis: Option<RedisConf>,
     pub mail: Option<MailConf>,
+    pub mtls: Option<MtlsConf>,
 }
 
 impl Default for BackendConfig {
@@ -21,16 +22,37 @@ impl Default for BackendConfig {
             db: DbConf::default(),
             dbr: None,
             redis: None,
-            mail: None
+            mail: None,
+            mtls: None,
         }
     }
 }
 
 impl BackendConfig {
     pub fn new() -> Self {
-        load_config_source()
+        let mut config: Self = load_config_source()
             .build().unwrap()
-            .try_deserialize().unwrap()
+            .try_deserialize().unwrap();
+        config.apply_mtls_fallback();
+        config
+    }
+
+    fn apply_mtls_fallback(&mut self) {
+        let Some(mtls) = &self.mtls else {
+            return;
+        };
+
+        mtls.fill_tls(&mut self.listen.tls);
+        mtls.fill_tls(&mut self.db.tls);
+        if let Some(dbr) = &mut self.dbr {
+            mtls.fill_tls(&mut dbr.tls);
+        }
+        if let Some(redis) = &mut self.redis {
+            mtls.fill_tls(&mut redis.tls);
+        }
+        if let Some(mail) = &mut self.mail {
+            mtls.fill_tls(&mut mail.tls);
+        }
     }
 }
 
@@ -41,7 +63,9 @@ pub struct ServerConf {
     pub port: u16,
     pub domain: String,
     pub basedir: Option<String>,   // for deployment under a subpath
-    pub origin: Option<String>     // exposed origin name
+    pub origin: Option<String>,    // exposed origin name
+    pub tls: Option<TlsConf>,
+    pub tls_verify_host: Option<bool>,
 }
 
 impl Default for ServerConf {
@@ -51,9 +75,34 @@ impl Default for ServerConf {
             port: 50051,
             domain: "".into(),
             basedir: None,
-            origin: None
+            origin: None,
+            tls: None,
+            tls_verify_host: None,
         }
     }
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct MtlsConf {
+    pub cert: String,
+    pub key: String,
+    pub ca: String,
+}
+
+impl MtlsConf {
+    fn fill_tls(&self, tls: &mut Option<TlsConf>) {
+        let tls = tls.get_or_insert_with(TlsConf::default);
+        tls.cert.get_or_insert_with(|| self.cert.clone());
+        tls.key.get_or_insert_with(|| self.key.clone());
+        tls.ca.get_or_insert_with(|| self.ca.clone());
+    }
+}
+
+#[derive(Debug, Default, Deserialize, Clone)]
+pub struct TlsConf {
+    pub cert: Option<String>,
+    pub key: Option<String>,
+    pub ca: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -70,6 +119,8 @@ pub struct DbConf {
     pub fallback: bool,
     pub application_name: Option<String>,
     pub schema: Option<String>,
+    pub tls: Option<TlsConf>,
+    pub tls_verify_host: Option<bool>,
 }
 
 impl Default for DbConf {
@@ -86,6 +137,8 @@ impl Default for DbConf {
             fallback: false,
             application_name: None,
             schema: None,
+            tls: None,
+            tls_verify_host: None,
         }
     }
 }
@@ -93,6 +146,8 @@ impl Default for DbConf {
 #[derive(Debug, Deserialize, Clone)]
 pub struct RedisConf {
     pub url: String,
+    pub tls: Option<TlsConf>,
+    pub tls_verify_host: Option<bool>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -106,10 +161,8 @@ pub struct MailConf {
     pub pool_max: Option<u32>,
     pub pool_idle: Option<u32>,
     pub sender_host: Option<String>,
-    pub tls_root_cert: Option<String>,
     pub tls_verify_host: Option<bool>,
-    pub tls_client_cert: Option<String>,
-    pub tls_client_key: Option<String>,
+    pub tls: Option<TlsConf>,
 }
 
 pub fn load_config_source() -> ConfigBuilder<DefaultState> {
@@ -118,4 +171,67 @@ pub fn load_config_source() -> ConfigBuilder<DefaultState> {
         .add_source(File::with_name(CONFIG_FILE_PATH).required(false))
         .add_source(File::with_name(&format!("./config/{env}", )).required(false))
         .add_source(Environment::with_prefix("sv").separator("__"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use config::FileFormat;
+
+    #[test]
+    fn tls_settings_override_mtls_per_field() {
+        let source = Config::builder()
+            .add_source(File::from_str(
+                r#"
+                [mtls]
+                cert = "shared.crt"
+                key = "shared.key"
+                ca = "shared-ca.crt"
+
+                [listen.tls]
+                cert = "listen.crt"
+
+                [dbr.tls]
+                key = "replica.key"
+
+                [redis]
+                url = "redis://localhost"
+
+                [redis.tls]
+                ca = "redis-ca.crt"
+
+                [mail]
+                from = "sender@example.com"
+                admin_addr = "admin@example.com"
+                api_host = "mail.example.com"
+
+                [mail.tls]
+                cert = "mail.crt"
+                "#,
+                FileFormat::Toml,
+            ))
+            .build()
+            .unwrap();
+        let mut config: BackendConfig = source.try_deserialize().unwrap();
+        config.apply_mtls_fallback();
+
+        let listen = config.listen.tls.unwrap();
+        assert_eq!(listen.cert.as_deref(), Some("listen.crt"));
+        assert_eq!(listen.key.as_deref(), Some("shared.key"));
+        assert_eq!(listen.ca.as_deref(), Some("shared-ca.crt"));
+
+        let db = config.db.tls.unwrap();
+        assert_eq!(db.cert.as_deref(), Some("shared.crt"));
+        assert_eq!(db.key.as_deref(), Some("shared.key"));
+        assert_eq!(db.ca.as_deref(), Some("shared-ca.crt"));
+
+        let replica = config.dbr.unwrap().tls.unwrap();
+        assert_eq!(replica.key.as_deref(), Some("replica.key"));
+        let redis = config.redis.unwrap().tls.unwrap();
+        assert_eq!(redis.ca.as_deref(), Some("redis-ca.crt"));
+        let mail = config.mail.unwrap().tls.unwrap();
+        assert_eq!(mail.cert.as_deref(), Some("mail.crt"));
+        assert_eq!(mail.key.as_deref(), Some("shared.key"));
+        assert_eq!(mail.ca.as_deref(), Some("shared-ca.crt"));
+    }
 }

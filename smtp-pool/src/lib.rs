@@ -63,8 +63,9 @@ fn pool_set(mail_conf: &MailConf) -> PoolConfig {
 }
 
 fn tls_builder(mail_conf: &MailConf) -> Result<TlsParameters, smtp::Error> {
+    let tls = mail_conf.tls.as_ref();
     let builder = TlsParameters::builder(mail_conf.api_host.clone());
-    let builder = if let Some(cert_path) = mail_conf.tls_root_cert.as_ref() {
+    let builder = if let Some(cert_path) = tls.and_then(|tls| tls.ca.as_deref()) {
         let cert_pem = fs::read(cert_path)
             .expect("Certificate fle cannot read");
         let cert = Certificate::from_pem(&cert_pem)
@@ -78,7 +79,8 @@ fn tls_builder(mail_conf: &MailConf) -> Result<TlsParameters, smtp::Error> {
     } else {
         builder
     };
-    let builder = if let (Some(cert_path), Some(key_path)) = (mail_conf.tls_client_cert.as_ref(), mail_conf.tls_client_key.as_ref()) {
+    let identity_paths = tls.and_then(|tls| tls.cert.as_deref().zip(tls.key.as_deref()));
+    let builder = if let Some((cert_path, key_path)) = identity_paths {
         let client_cert = fs::read(cert_path)
             .expect("ClientCertificate fle cannot read");
         let client_key = fs::read(key_path)
