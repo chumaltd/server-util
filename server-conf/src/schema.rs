@@ -1,4 +1,4 @@
-use config::{Config, ConfigBuilder, Environment, File, builder::DefaultState};
+use config::{Config, ConfigBuilder, ConfigError, Environment, File, builder::DefaultState};
 use serde::Deserialize;
 use std::env;
 
@@ -30,11 +30,20 @@ impl Default for BackendConfig {
 
 impl BackendConfig {
     pub fn new() -> Self {
-        let mut config: Self = load_config_source()
-            .build().unwrap()
-            .try_deserialize().unwrap();
+        Self::from_config(load_config_source().build().unwrap()).unwrap()
+    }
+
+    fn from_config(source: Config) -> Result<Self, ConfigError> {
+        let mut config: Self = source.try_deserialize()?;
         config.apply_mtls_fallback();
-        config
+        if let Some(tls) = &config.listen.tls {
+            if tls.key.is_none() && (tls.cert.is_some() || tls.ca.is_some()) {
+                return Err(ConfigError::Message(
+                    "listen.tls.key is required when listen.tls.cert or listen.tls.ca is set".into(),
+                ));
+            }
+        }
+        Ok(config)
     }
 
     fn apply_mtls_fallback(&mut self) {
@@ -179,6 +188,30 @@ mod tests {
     use config::FileFormat;
 
     #[test]
+    fn listen_tls_requires_a_key_only_when_cert_or_ca_is_set() {
+        for (toml, valid) in [
+            ("", true),
+            ("[listen.tls]", true),
+            ("[listen.tls]\nkey = 'listen.key'", true),
+            ("[listen.tls]\ncert = 'listen.crt'\nkey = 'listen.key'", true),
+            ("[listen.tls]\ncert = 'listen.crt'", false),
+            ("[listen.tls]\nca = 'ca.crt'", false),
+        ] {
+            let source = Config::builder()
+                .add_source(File::from_str(toml, FileFormat::Toml))
+                .build()
+                .unwrap();
+            let result = BackendConfig::from_config(source);
+            if valid {
+                result.unwrap();
+            } else {
+                assert!(matches!(result, Err(ConfigError::Message(message))
+                    if message.contains("listen.tls.key")));
+            }
+        }
+    }
+
+    #[test]
     fn tls_settings_override_mtls_per_field() {
         let source = Config::builder()
             .add_source(File::from_str(
@@ -212,8 +245,7 @@ mod tests {
             ))
             .build()
             .unwrap();
-        let mut config: BackendConfig = source.try_deserialize().unwrap();
-        config.apply_mtls_fallback();
+        let config = BackendConfig::from_config(source).unwrap();
 
         let listen = config.listen.tls.unwrap();
         assert_eq!(listen.cert.as_deref(), Some("listen.crt"));
