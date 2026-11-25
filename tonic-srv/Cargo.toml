@@ -1,0 +1,39 @@
+[package]
+name = "tonic-srv"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+
+[features]
+default = ["otel"]
+otel = [
+    "dep:env_logger",
+    "dep:log",
+    "dep:opentelemetry-appender-log",
+    "dep:server-conf",
+    "dep:opentelemetry",
+    "dep:opentelemetry-otlp",
+    "dep:opentelemetry_sdk",
+    "dep:tracing",
+    "dep:tracing-opentelemetry",
+    "dep:tracing-subscriber",
+    "tokio/rt",
+]
+
+[dependencies]
+env_logger = { version = "0.11", optional = true }
+log = { version = "0.4", features = ["std"], optional = true }
+opentelemetry-appender-log = { version = "0.33", optional = true }
+server-conf = { path = "../server-conf", optional = true }
+opentelemetry = { version = "0.33", default-features = false, features = ["trace"], optional = true }
+opentelemetry-otlp = { version = "0.33", default-features = false, features = ["grpc-tonic", "tls-roots", "logs", "trace"], optional = true }
+opentelemetry_sdk = { version = "0.33", default-features = false, features = ["logs", "trace"], optional = true }
+tracing = { version = "0.1", optional = true }
+tracing-opentelemetry = { version = "0.34", default-features = false, optional = true }
+tracing-subscriber = { version = "0.3", default-features = false, features = ["env-filter", "registry"], optional = true }
+signal-hook = "0.4"
+signal-hook-tokio = { version = "0.4", features = ["futures-v0_3"] }
+tokio = { version = "1", features = ["macros", "net"] }
+tokio-stream = { version = "0.1", features = ["net"] }
+tonic = "0.14"
+triggered = "0.1.2"

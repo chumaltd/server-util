@@ -4,6 +4,7 @@ members = [
   "server-conf",
   "smtp-pool",
   "pg-pool",
+  "tonic-srv",
 ]
 resolver = "2"
 

@@ -13,6 +13,7 @@ pub struct BackendConfig {
     pub redis: Option<RedisConf>,
     pub mail: Option<MailConf>,
     pub mtls: Option<MtlsConf>,
+    pub otel: Option<OtelConf>,
 }
 
 impl Default for BackendConfig {
@@ -24,6 +25,7 @@ impl Default for BackendConfig {
             redis: None,
             mail: None,
             mtls: None,
+            otel: None,
         }
     }
 }
@@ -89,6 +91,21 @@ impl Default for ServerConf {
             tls_verify_host: None,
         }
     }
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct OtelConf {
+    pub endpoint: String,
+    #[serde(default = "default_true")]
+    pub traces: bool,
+    #[serde(default = "default_true")]
+    pub logs: bool,
+    #[serde(default = "default_true")]
+    pub metrics: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -186,6 +203,34 @@ pub fn load_config_source() -> ConfigBuilder<DefaultState> {
 mod tests {
     use super::*;
     use config::FileFormat;
+
+    #[test]
+    fn otel_is_optional_and_signal_flags_default_to_true() {
+        fn load(toml: &str) -> Result<BackendConfig, ConfigError> {
+            let source = Config::builder()
+                .add_source(File::from_str(toml, FileFormat::Toml))
+                .build()?;
+            BackendConfig::from_config(source)
+        }
+
+        assert!(load("").unwrap().otel.is_none());
+        assert!(load("[otel]\nlogs = false").is_err());
+
+        let otel = load("[otel]\nendpoint = 'http://localhost:4317'")
+            .unwrap()
+            .otel
+            .unwrap();
+        assert_eq!(otel.endpoint, "http://localhost:4317");
+        assert!(otel.traces && otel.logs && otel.metrics);
+
+        let otel = load(
+            "[otel]\nendpoint = 'http://localhost:4317'\ntraces = false\nlogs = false\nmetrics = false",
+        )
+        .unwrap()
+        .otel
+        .unwrap();
+        assert!(!otel.traces && !otel.logs && !otel.metrics);
+    }
 
     #[test]
     fn listen_tls_requires_a_key_only_when_cert_or_ca_is_set() {
