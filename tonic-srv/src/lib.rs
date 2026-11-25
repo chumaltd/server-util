@@ -7,6 +7,9 @@ use tokio_stream::{StreamExt, wrappers::TcpListenerStream};
 use tonic::transport::{Error, server::Router};
 use triggered::Listener;
 
+mod tls;
+pub use tls::server_builder;
+
 /// Serve a configured gRPC router on an already bound listener.
 pub async fn serve(
     router: Router,
