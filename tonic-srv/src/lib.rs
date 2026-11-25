@@ -50,3 +50,6 @@ pub async fn handle_signals(mut signals: Signals, trigger: triggered::Trigger) {
 
 #[cfg(feature = "otel")]
 pub mod otel;
+
+#[cfg(feature = "test-support")]
+pub mod test_support;

@@ -1,11 +1,12 @@
 [package]
 name = "tonic-srv"
-version = "0.2.1"
+version = "0.2.2"
 authors.workspace = true
 edition.workspace = true
 
 [features]
 default = ["otel"]
+test-support = ["tokio/rt", "tokio/time"]
 otel = [
     "dep:env_logger",
     "dep:log",
