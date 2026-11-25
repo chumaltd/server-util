@@ -1,6 +1,5 @@
 use lettre::{
     transport::smtp::{
-        self,
         authentication::Credentials,
         client::{Certificate, Identity, Tls, TlsParameters},
         extension::ClientId,
@@ -10,6 +9,7 @@ use lettre::{
 };
 pub use lettre::AsyncTransport;
 use log::error;
+use rustls_pki_types::{CertificateDer, pem::PemObject};
 use server_conf::{SV_CONF, MailConf};
 use std::{fs, sync::LazyLock};
 
@@ -19,7 +19,7 @@ pub static SMTP_MAILER: LazyLock<AsyncSmtpTransport<Tokio1Executor>> = LazyLock:
     mailer(mail_conf).unwrap()
 });
 
-fn mailer(mail_conf: &MailConf) -> Result<AsyncSmtpTransport<Tokio1Executor>, smtp::Error> {
+fn mailer(mail_conf: &MailConf) -> Result<AsyncSmtpTransport<Tokio1Executor>, Box<dyn std::error::Error>> {
     let tls_params = tls_builder(mail_conf)?;
 
     let port = match mail_conf.api_port {
@@ -62,7 +62,7 @@ fn pool_set(mail_conf: &MailConf) -> PoolConfig {
     }
 }
 
-fn tls_builder(mail_conf: &MailConf) -> Result<TlsParameters, smtp::Error> {
+fn tls_builder(mail_conf: &MailConf) -> Result<TlsParameters, Box<dyn std::error::Error>> {
     let tls = mail_conf.tls.as_ref();
     let builder = TlsParameters::builder(mail_conf.api_host.clone());
     let builder = if let Some(cert_path) = tls.and_then(|tls| tls.ca.as_deref()) {
@@ -85,7 +85,9 @@ fn tls_builder(mail_conf: &MailConf) -> Result<TlsParameters, smtp::Error> {
             .expect("ClientCertificate fle cannot read");
         let client_key = fs::read(key_path)
             .expect("ClientKey fle cannot read");
-        let identity = Identity::from_pem(&client_cert, &client_key)
+        // Lettre 0.11's rustls backend expects DER certificate bytes and a PEM key.
+        let client_cert = CertificateDer::from_pem_slice(&client_cert)?;
+        let identity = Identity::from_pem(client_cert.as_ref(), &client_key)
             .map_err(|e| {
                 error!("ClientCertificate not initialized: {e}");
                 e
@@ -94,9 +96,9 @@ fn tls_builder(mail_conf: &MailConf) -> Result<TlsParameters, smtp::Error> {
     } else {
         builder
     };
-    builder.build()
+    Ok(builder.build()
         .map_err(|e| {
             error!("tls_builder: {e}");
             e
-        })
+        })?)
 }
