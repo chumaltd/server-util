@@ -102,6 +102,19 @@ pub struct OtelConf {
     pub logs: bool,
     #[serde(default = "default_true")]
     pub metrics: bool,
+    #[serde(default)]
+    pub log_level: OtelLogLevel,
+}
+
+#[derive(Debug, Default, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum OtelLogLevel {
+    Error,
+    #[default]
+    Warn,
+    Info,
+    Debug,
+    Trace,
 }
 
 fn default_true() -> bool {
@@ -222,6 +235,19 @@ mod tests {
             .unwrap();
         assert_eq!(otel.endpoint, "http://localhost:4317");
         assert!(otel.traces && otel.logs && otel.metrics);
+        assert_eq!(otel.log_level, OtelLogLevel::Warn);
+
+        for (name, level) in [
+            ("error", OtelLogLevel::Error),
+            ("warn", OtelLogLevel::Warn),
+            ("info", OtelLogLevel::Info),
+            ("debug", OtelLogLevel::Debug),
+            ("trace", OtelLogLevel::Trace),
+        ] {
+            let toml = format!("[otel]\nendpoint = 'http://localhost:4317'\nlog_level = '{name}'");
+            assert_eq!(load(&toml).unwrap().otel.unwrap().log_level, level);
+        }
+        assert!(load("[otel]\nendpoint = 'http://localhost:4317'\nlog_level = 'off'").is_err());
 
         let otel = load(
             "[otel]\nendpoint = 'http://localhost:4317'\ntraces = false\nlogs = false\nmetrics = false",

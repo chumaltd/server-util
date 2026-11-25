@@ -39,8 +39,7 @@ impl Telemetry {
 /// Call once, before serving requests, from within a Tokio runtime.
 pub fn init(service_name: &'static str, config: Option<&OtelConf>) -> Telemetry {
     let config = config.filter(|conf| !conf.endpoint.is_empty());
-    let log_endpoint = config.filter(|conf| conf.logs).map(|conf| conf.endpoint.as_str());
-    let logger = logging::init(service_name, log_endpoint);
+    let logger = logging::init(service_name, config.filter(|conf| conf.logs));
     let tracer = config.filter(|conf| conf.traces).and_then(|conf| {
         match init_tracing(service_name, &conf.endpoint) {
             Ok(provider) => Some(provider),
