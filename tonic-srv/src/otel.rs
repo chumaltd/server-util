@@ -17,6 +17,8 @@ use tracing_subscriber::{EnvFilter, layer::Layer, layer::SubscriberExt};
 
 mod logging;
 
+const GRPC_REQUEST_TARGET: &str = "grpc.request";
+
 /// Owns the providers that must be flushed after the server drains.
 pub struct Telemetry {
     logger: Option<SdkLoggerProvider>,
@@ -38,10 +40,22 @@ impl Telemetry {
 /// Initialize console logging and the OTLP signals enabled by the configuration.
 /// Call once, before serving requests, from within a Tokio runtime.
 pub fn init(service_name: &'static str, config: Option<&OtelConf>) -> Telemetry {
+    init_with_request_target(service_name, config, GRPC_REQUEST_TARGET)
+}
+
+/// Initialize console logging and the configured OTLP signals for a custom request span target.
+///
+/// When trace export is enabled, add an INFO directive for `request_target` to the trace filter.
+/// Call once, before serving requests, from within a Tokio runtime.
+pub fn init_with_request_target(
+    service_name: &'static str,
+    config: Option<&OtelConf>,
+    request_target: &'static str,
+) -> Telemetry {
     let config = config.filter(|conf| !conf.endpoint.is_empty());
     let logger = logging::init(service_name, config.filter(|conf| conf.logs));
     let tracer = config.filter(|conf| conf.traces).and_then(|conf| {
-        match init_tracing(service_name, &conf.endpoint) {
+        match init_tracing(service_name, &conf.endpoint, request_target) {
             Ok(provider) => Some(provider),
             Err(error) => {
                 eprintln!("failed to initialize OpenTelemetry tracing: {error}");
@@ -55,6 +69,7 @@ pub fn init(service_name: &'static str, config: Option<&OtelConf>) -> Telemetry 
 fn init_tracing(
     service_name: &'static str,
     endpoint: &str,
+    request_target: &str,
 ) -> Result<SdkTracerProvider, Box<dyn std::error::Error + Send + Sync>> {
     let exporter = opentelemetry_otlp::SpanExporter::builder()
         .with_tonic()
@@ -67,7 +82,7 @@ fn init_tracing(
         .build();
     let filter = EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| EnvFilter::new("info"))
-        .add_directive("grpc.request=info".parse()?);
+        .add_directive(format!("{request_target}=info").parse()?);
     let layer = tracing_opentelemetry::layer()
         .with_tracer(provider.tracer(service_name))
         .with_filter(filter);
@@ -87,7 +102,7 @@ async fn shutdown_tracing(provider: SdkTracerProvider) {
 /// Create the request span used by tonic's server builder.
 pub fn request_span<B>(request: &tonic::codegen::http::Request<B>) -> tracing::Span {
     let span = tracing::info_span!(
-        target: "grpc.request",
+        target: GRPC_REQUEST_TARGET,
         "grpc request",
         method = %request.method(),
         uri = %request.uri(),
