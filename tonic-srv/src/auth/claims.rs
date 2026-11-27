@@ -1,6 +1,6 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
 use server_conf::JwtConf;
 
 #[derive(Deserialize)]
@@ -14,8 +14,15 @@ enum Audience {
 pub(super) struct StandardClaims {
     sub: String,
     iss: String,
-    aud: Audience,
+    #[serde(default, deserialize_with = "deserialize_audience")]
+    aud: Option<Audience>,
     exp: f64,
+}
+
+fn deserialize_audience<'de, D: Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<Audience>, D::Error> {
+    Audience::deserialize(deserializer).map(Some)
 }
 
 impl StandardClaims {
@@ -24,15 +31,7 @@ impl StandardClaims {
         config: Option<&JwtConf>,
         now: SystemTime,
     ) -> Result<(), &'static str> {
-        let required_claims_present = !self.sub.is_empty()
-            && !self.iss.is_empty()
-            && match &self.aud {
-                Audience::Single(audience) => !audience.is_empty(),
-                Audience::Multiple(audiences) => {
-                    !audiences.is_empty() && audiences.iter().all(|audience| !audience.is_empty())
-                }
-            };
-        if !required_claims_present {
+        if self.sub.is_empty() || self.iss.is_empty() {
             return Err("empty_required_claim");
         }
         if let Some(config) = config {
@@ -40,11 +39,12 @@ impl StandardClaims {
                 return Err("issuer_mismatch");
             }
             if let Some(expected) = &config.aud {
-                let matches = match &self.aud {
+                let audience = self.aud.as_ref().ok_or("missing_audience")?;
+                let matches = match audience {
                     Audience::Single(audience) => audience == expected,
                     Audience::Multiple(audiences) => audiences.contains(expected),
                 };
-                if !matches {
+                if expected.is_empty() || !matches {
                     return Err("audience_mismatch");
                 }
             }
@@ -63,6 +63,21 @@ impl StandardClaims {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn audience_is_required_only_when_configured() {
+        let mut config = JwtConf { iss: "issuer".into(), aud: None };
+        let missing: StandardClaims =
+            serde_json::from_str(r#"{"sub":"user","iss":"issuer","exp":100}"#).unwrap();
+        let empty: StandardClaims =
+            serde_json::from_str(r#"{"sub":"user","iss":"issuer","aud":[],"exp":100}"#).unwrap();
+        assert_eq!(missing.validate(Some(&config), UNIX_EPOCH), Ok(()));
+        assert_eq!(empty.validate(Some(&config), UNIX_EPOCH), Ok(()));
+
+        config.aud = Some("service".into());
+        assert_eq!(missing.validate(Some(&config), UNIX_EPOCH), Err("missing_audience"));
+        assert_eq!(empty.validate(Some(&config), UNIX_EPOCH), Err("audience_mismatch"));
+    }
 
     #[test]
     fn configured_claims_must_match_exactly() {

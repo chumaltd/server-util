@@ -104,7 +104,8 @@ mod tests {
         bearer_only.metadata_mut().insert("authorization", "Bearer a.b.c".parse().unwrap());
         let mut duplicate = request_with_payload(r#"{"sub":"user","iss":"issuer","aud":"service","exp":4102444800}"#);
         duplicate.metadata_mut().append(ENVOY_JWT_PAYLOAD_HEADER, "e30".parse().unwrap());
-        let missing_audience = request_with_payload(r#"{"sub":"user","iss":"issuer","exp":4102444800}"#);
+        let invalid_audience =
+            request_with_payload(r#"{"sub":"user","iss":"issuer","aud":null,"exp":4102444800}"#);
         let duplicate_issuer =
             request_with_payload(r#"{"sub":"user","iss":"a","iss":"b","aud":"service","exp":4102444800}"#);
         let missing_expiration =
@@ -122,7 +123,7 @@ mod tests {
         for request in [
             bearer_only,
             duplicate,
-            missing_audience,
+            invalid_audience,
             duplicate_issuer,
             missing_expiration,
             expired,
