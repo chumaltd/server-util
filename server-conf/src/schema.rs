@@ -14,6 +14,7 @@ pub struct BackendConfig {
     pub mail: Option<MailConf>,
     pub mtls: Option<MtlsConf>,
     pub otel: Option<OtelConf>,
+    pub jwt: Option<JwtConf>,
 }
 
 impl Default for BackendConfig {
@@ -26,6 +27,7 @@ impl Default for BackendConfig {
             mail: None,
             mtls: None,
             otel: None,
+            jwt: None,
         }
     }
 }
@@ -37,6 +39,9 @@ impl BackendConfig {
 
     fn from_config(source: Config) -> Result<Self, ConfigError> {
         let mut config: Self = source.try_deserialize()?;
+        if config.jwt.as_ref().is_some_and(|jwt| jwt.iss.trim().is_empty()) {
+            return Err(ConfigError::Message("jwt.iss must not be empty".into()));
+        }
         config.apply_mtls_fallback();
         if let Some(tls) = &config.listen.tls {
             if tls.key.is_none() && (tls.cert.is_some() || tls.ca.is_some()) {
@@ -91,6 +96,12 @@ impl Default for ServerConf {
             tls_verify_host: None,
         }
     }
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct JwtConf {
+    pub iss: String,
+    pub aud: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -216,6 +227,26 @@ pub fn load_config_source() -> ConfigBuilder<DefaultState> {
 mod tests {
     use super::*;
     use config::FileFormat;
+
+    #[test]
+    fn jwt_requires_issuer_when_configured() {
+        fn load(toml: &str) -> Result<BackendConfig, ConfigError> {
+            let source = Config::builder()
+                .add_source(File::from_str(toml, FileFormat::Toml))
+                .build()?;
+            BackendConfig::from_config(source)
+        }
+
+        assert!(load("").unwrap().jwt.is_none());
+        assert!(load("[jwt]\naud = \"service\"").is_err());
+        for issuer in ["", " "] {
+            let error = load(&format!("[jwt]\niss = \"{issuer}\"")).unwrap_err();
+            assert!(error.to_string().contains("jwt.iss must not be empty"));
+        }
+        let jwt = load("[jwt]\niss = \"issuer\"").unwrap().jwt.unwrap();
+        assert_eq!(jwt.iss, "issuer");
+        assert_eq!(jwt.aud, None);
+    }
 
     #[test]
     fn otel_is_optional_and_signal_flags_default_to_true() {

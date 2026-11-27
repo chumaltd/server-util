@@ -1,11 +1,13 @@
 [package]
 name = "tonic-srv"
-version = "0.2.4"
+version = "0.3.0"
 authors.workspace = true
 edition.workspace = true
 
 [features]
-default = ["otel"]
+default = ["otel", "tls"]
+envoy = ["dep:base64", "dep:log", "dep:serde", "dep:serde_json"]
+tls = ["tonic/tls-aws-lc"]
 test-support = ["tokio/rt", "tokio/time"]
 otel = [
     "dep:env_logger",
@@ -21,6 +23,9 @@ otel = [
 ]
 
 [dependencies]
+base64 = { version = "0.23", optional = true }
+serde = { version = "1", features = ["derive"], optional = true }
+serde_json = { version = "1", optional = true }
 env_logger = { version = "0.11", optional = true }
 log = { version = "0.4", features = ["std"], optional = true }
 opentelemetry-appender-log = { version = "0.33", optional = true }
@@ -35,5 +40,5 @@ signal-hook = "0.4"
 signal-hook-tokio = { version = "0.4", features = ["futures-v0_3"] }
 tokio = { version = "1", features = ["macros", "net"] }
 tokio-stream = { version = "0.1", features = ["net"] }
-tonic = { version = "0.14", features = ["tls-aws-lc"] }
+tonic = "0.14"
 triggered = "0.1.2"

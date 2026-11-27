@@ -12,8 +12,12 @@ use tokio_stream::{Stream, StreamExt, wrappers::TcpListenerStream};
 use tonic::transport::{Error, server::Router};
 use triggered::Listener;
 
+#[cfg(feature = "tls")]
 mod tls;
+#[cfg(feature = "tls")]
 pub use tls::server_builder;
+
+pub mod auth;
 
 const READY_PATH: &str = "/tmp/grpc-ready";
 
